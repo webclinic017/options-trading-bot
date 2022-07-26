@@ -15,25 +15,33 @@ NETFLIX = "NFLX"
 FORD = "F"
 APPLE = "AAPL"
 NVIDIA = "NVDA"
+AMAZON = "AMZN"
 
 STRIKE_PRICE_DIFFERENCE = 7
 
 CREATE_TABLE = """
     CREATE TABLE IF NOT EXISTS signals (
         symbol,
+        condition,
         action, 
         right,
         contracts,
         entryprice,
         strikeprice,
+        stoploss,
+        takeProfit,
         result,
         afterhours,
-        timestamp DEFAULT (strftime('%m/%d/%Y %H:%M:%S', datetime('now')))
+        timestamp
     )
 """
+
 DELETE_ALL = """DELETE FROM signals"""
 SELECT_ALL = """SELECT * FROM signals"""
 INSERT_DATA = """
-    INSERT INTO signals(symbol, action, right, contracts, entryprice, strikeprice, result, afterhours) 
-    VALUES(?, ?, ?, ?, ?, ?, ?, ?);
+    INSERT INTO signals(symbol, condition, action, right, contracts, entryprice, strikeprice, stoploss, takeProfit, result, afterhours, timestamp) 
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
+
+MATCHING_TRADE_STOPLOSS = """select condition from signals where stoploss = ?"""
+MATCHING_TRADE_PROFIT = """select condition from signals where takeprofit = ?"""
