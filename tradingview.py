@@ -22,9 +22,6 @@ def alert():
         We also store the trade into the database.  Will need to update the
         same row if we won or lost instead of inserting a new row.
     """
-
-    print("Testing trading view endpoint.")
-
     data = request.data
 
     if data:
@@ -32,20 +29,22 @@ def alert():
         r.publish('tradingview', data)
 
         symbol = tradeview_message['symbol']
+        condition = tradeview_message['order']['condition']
         price = tradeview_message['order']['price']
-        # stoploss = tradeview_message['order']['stoploss']
-        # take_profit = tradeview_message['order']['takeProfit']
+        stoploss = tradeview_message['order']['stoploss']
+        take_profit = tradeview_message['order']['takeProfit']
         right = tradeview_message['order']['right']
         contracts = tradeview_message['order']['contracts']
         action = tradeview_message['order']['action']
-        # result = tradeview_message['order']['result']
-        # afterhours = tradeview_message['order']['afterhours']
+        result = tradeview_message['order']['result']
+        afterhours = tradeview_message['order']['afterhours']
 
         print("This is a", right, "option to", action, "for", symbol, "@", price, "and", contracts, "contracts")
-        # print("Stoploss:", stoploss)
-        # print("Take Profit:", take_profit)
-        # print("Afterhours?:", afterhours)
-        # print("Won/Loss/Pending?:", result)
+        print("Condition:", condition)
+        print("Stoploss:", stoploss)
+        print("Take Profit:", take_profit)
+        print("Afterhours?:", afterhours)
+        print("Won/Loss/Pending?:", result)
 
         return data
 
