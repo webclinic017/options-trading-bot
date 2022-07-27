@@ -35,7 +35,7 @@ print("First Stock:", constants.AMAZON)
 print("Second Stock:", constants.NVIDIA)
 
 ib = IB()
-ib.connect('127.0.0.1', 7496, clientId=1)
+ib.connect('127.0.0.1', 7497, clientId=1)
 ib.reqMarketDataType(1)
 amazon_stock_contract = Stock(constants.AMAZON, constants.SMART, constants.USD, primaryExchange='NASDAQ')
 nvidia_stock_contract = Stock(constants.NVIDIA, constants.SMART, constants.USD, primaryExchange='NASDAQ')
@@ -147,14 +147,15 @@ async def check_messages():
             open_trades = ib.openTrades()
             print(open_trades)
 
-            matching_trade = get_matching_trade(symbol, condition)
+            matching_trade_strike_price = get_matching_trade(symbol, condition, right, result)
 
             if open_trades:
                 for open_trade in open_trades:
-                    if open_trade.contract.symbol == symbol and open_trade.contract.strike == matching_strike:
+                    if open_trade.contract.symbol == symbol and open_trade.contract.right == right and open_trade.contract.strike == matching_trade_strike_price :
                         print("Selling contract for: ", symbol)
                         print(open_trade.contract)
                         ib.placeOrder(open_trade.contract, options_order)
+                        update_data(result, condition, action)
                         return
             else:
                 print("No open contracts to sell.")
@@ -171,7 +172,6 @@ def create_options_contract(symbol, expiration, strike, right):
         constants.SMART,
         tradingClass=symbol
     )
-
 
 def save_data(message_data, strike_price):
     print("Saving to database...")
@@ -199,9 +199,16 @@ def save_data(message_data, strike_price):
 
     print("Saved to database!")
 
-def get_matching_trade(symbol, condition):
+def get_matching_trade(symbol, condition, right, result):
     cursor = conn.cursor()
-    cursor.execute(constants.MATCHING_TRADE_PROFIT, symbol, condition)
+    if result == "W":
+        cursor.execute(constants.MATCHING_TRADE_PROFIT, (symbol, condition, right))
+    else:
+        cursor.execute(constants.MATCHING_TRADE_STOPLOSS, (symbol, condition, right))
+
+def update_data(result, condition, action):
+    cursor = conn.cursor()
+    cursor.execute(constants.UPDATE_DATA, (result, condition, action))
 
 # Update options chains
 async def update_options_chains():

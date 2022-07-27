@@ -42,6 +42,7 @@ INSERT_DATA = """
     INSERT INTO signals(symbol, condition, action, right, contracts, entryprice, strikeprice, stoploss, takeProfit, result, afterhours, timestamp) 
     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
+UPDATE_DATA = """UPDATE signals SET result = ? WHERE condition = ? AND action = ? AND result = 'P'"""
 
-MATCHING_TRADE_STOPLOSS = """select condition from signals where stoploss = ?"""
-MATCHING_TRADE_PROFIT = """select condition from signals where takeprofit = ?"""
+MATCHING_TRADE_STOPLOSS = """select strikeprice from signals where stoploss = ? and condition = ? and right = ?"""
+MATCHING_TRADE_PROFIT = """select strikeprice from signals where takeprofit = ? and condition = ? and right = ?"""
