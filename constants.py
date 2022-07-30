@@ -4,6 +4,9 @@
     files.  Can add any other static variables here.
 """
 
+BALANCE = 1000
+RISK = .01
+
 BUY = "BUY"
 SELL = "SELL"
 CALL = "CALL"
