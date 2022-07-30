@@ -72,7 +72,7 @@ class OptionsBot:
             print(str(e))
 
         self.ib.reqMarketDataType(1)
-        self.amazon_stock_contract = Stock(constants.AMAZON, 'NASDAQ', constants.USD, primaryExchange='NASDAQ')
+        self.amazon_stock_contract = Stock(constants.AMAZON, constants.SMART, constants.USD, primaryExchange='NASDAQ')
         self.nvidia_stock_contract = Stock(constants.NVIDIA, constants.SMART, constants.USD, primaryExchange='NASDAQ')
         self.apple_stock_contract = Stock(constants.APPLE, constants.SMART, constants.USD, primaryExchange='NASDAQ')
         self.ib.qualifyContracts(self.amazon_stock_contract)
@@ -89,6 +89,9 @@ class OptionsBot:
         self.apple_option_chains = self.ib.reqSecDefOptParams(self.apple_stock_contract.symbol, '',
                                                                self.apple_stock_contract.secType,
                                                                self.apple_stock_contract.conId)
+
+        tickers = self.ib.reqTickers(self.amazon_stock_contract)
+        print(tickers)
 
         current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
         print("Running Live...")
@@ -150,6 +153,20 @@ class OptionsBot:
                                         call_strike,
                                         right)
                                     options_order = MarketOrder(action, contracts)
+                                    ticker_data = self.ib.reqTickers(self.breakout_amazon_call_options_contract)
+
+                                    # self.calculate_contracts()
+                                    print(ticker_data)
+
+                                    ask = ticker_data[0].ask
+                                    askGreeks = ticker_data[0].askGreeks
+                                    imp_volatility = ticker_data[0].impliedVolatility
+
+                                    print("Ask:", ask)
+                                    print("Ask Greeks:", askGreeks)
+                                    print("Implied Volatility:", imp_volatility)
+                                    print("All First Ticker Data:", ticker_data[0])
+
                                     # self.insert_option_contract(condition, self.breakout_amazon_call_options_contract)
                                     print("Contract placed:", self.breakout_amazon_call_options_contract)
                                     print("Options order to place:", options_order)
@@ -363,6 +380,16 @@ class OptionsBot:
                 self.update_data(result, condition, symbol)
             else:
                 print("Only action known is BUY and SELL, we don't do anything with this:", action)
+
+    def calculate_contracts(self, delta):
+        print("Calculating the correct Strike price...")
+
+        risk_amount = constants.BALANCE * constants.RISK
+        number_of_contracts = (delta / 2) / risk_amount
+
+        print("The number of contracts for", delta, " is", number_of_contracts)
+
+        return number_of_contracts
 
     def create_options_contract(self, symbol, expiration, strike, right):
         return Option(
