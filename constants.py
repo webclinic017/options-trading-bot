@@ -21,7 +21,7 @@ APPLE = "AAPL"
 NVIDIA = "NVDA"
 AMAZON = "AMZN"
 
-STRIKE_PRICE_DIFFERENCE = 1
+STRIKE_PRICE_DIFFERENCE = 2
 
 CREATE_TABLE = """
     CREATE TABLE IF NOT EXISTS signals (
@@ -73,3 +73,4 @@ UPDATE_DATA = """UPDATE signals SET result = ? WHERE condition = ? AND action = 
 
 MATCHING_TRADE_STOPLOSS = """select strikeprice from signals where stoploss = ? and condition = ? and right = ?"""
 MATCHING_TRADE_PROFIT = """select strikeprice from signals where takeprofit = ? and condition = ? and right = ?"""
+GET_MATCHING_TRADE = """select contracts from signals where symbol = ? and condition = ?"""
