@@ -1,6 +1,6 @@
 """
     All the strings and queries that won't change will be here
-    to reference them easier and create less lines of code in other
+    to reference them easier and create fewer lines of code in other
     files.  Can add any other static variables here.
 """
 
@@ -21,7 +21,7 @@ APPLE = "AAPL"
 NVIDIA = "NVDA"
 AMAZON = "AMZN"
 
-STRIKE_PRICE_DIFFERENCE = 2
+GET_STRIKE_PRICE = 1
 
 CREATE_TABLE = """
     CREATE TABLE IF NOT EXISTS signals (
@@ -41,7 +41,6 @@ CREATE_TABLE = """
     )
 """
 
-# Option(symbol='NVDA', lastTradeDateOrContractMonth='20220729', strike=195.0, right='CALL', exchange='SMART', tradingClass='NVDA')
 CREATE_OPTIONS_TABLE = """
     CREATE TABLE IF NOT EXISTS options (
         condition,
@@ -73,4 +72,4 @@ UPDATE_DATA = """UPDATE signals SET result = ? WHERE condition = ? AND action = 
 
 MATCHING_TRADE_STOPLOSS = """select strikeprice from signals where stoploss = ? and condition = ? and right = ?"""
 MATCHING_TRADE_PROFIT = """select strikeprice from signals where takeprofit = ? and condition = ? and right = ?"""
-GET_MATCHING_TRADE = """select contracts from signals where symbol = ? and condition = ?"""
+GET_MATCHING_TRADE = """select contracts from signals where symbol = ? and condition = ? and result = 'P'"""
