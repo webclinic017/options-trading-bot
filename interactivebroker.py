@@ -67,7 +67,7 @@ class OptionsBot:
 
         try:
             self.ib = IB()
-            self.ib.connect('127.0.0.1', 7497, clientId=1)
+            self.ib.connect('127.0.0.1', 4002, clientId=1)
         except Exception as e:
             print(str(e))
 
