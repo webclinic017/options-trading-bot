@@ -55,7 +55,7 @@ class OptionsBot:
         # sqlite3 connection
         try:
             print("Connecting to SQLite3 Database...")
-            self.conn = sqlite3.connect('trade.db')
+            self.conn = sqlite3.connect('trade.db', check_same_thread=False)
             self.cursor = self.conn.cursor()
             self.cursor.execute(constants.CREATE_TABLE)
             self.conn.commit()
@@ -143,8 +143,6 @@ class OptionsBot:
             print("Afterhours?:", afterhours)
             print("Won/Loss/Pending?:", result)
 
-            self.ib.reqHistoricalData()
-
             if action == constants.BUY:
                 if symbol == constants.AMAZON:
                     # start initial value
@@ -170,7 +168,7 @@ class OptionsBot:
                         contracts = [Option(symbol, expiration, strike, right, 'SMART', tradingClass=symbol)
                                      for right in rights
                                      for expiration in expirations
-                                     for strike in call_strikes[:5]]
+                                     for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
 
                         contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(contracts))
@@ -243,7 +241,7 @@ class OptionsBot:
                         contracts = [Option(symbol, expiration, strike, right, 'SMART', tradingClass=symbol)
                                      for right in rights
                                      for expiration in expirations
-                                     for strike in call_strikes[:5]]
+                                     for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
 
                         contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(contracts))
@@ -334,7 +332,7 @@ class OptionsBot:
                         contracts = [Option(symbol, expiration, strike, right, 'SMART', tradingClass=symbol)
                                      for right in rights
                                      for expiration in expirations
-                                     for strike in call_strikes[:5]]
+                                     for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
 
                         contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(contracts))
@@ -408,7 +406,7 @@ class OptionsBot:
                         contracts = [Option(symbol, expiration, strike, right, 'SMART', tradingClass=symbol)
                                      for right in rights
                                      for expiration in expirations
-                                     for strike in call_strikes[:5]]
+                                     for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
 
                         contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(contracts))
@@ -500,7 +498,7 @@ class OptionsBot:
                         contracts = [Option(symbol, expiration, strike, right, 'SMART', tradingClass=symbol)
                                      for right in rights
                                      for expiration in expirations
-                                     for strike in call_strikes[:5]]
+                                     for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
 
                         contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(contracts))
@@ -570,7 +568,7 @@ class OptionsBot:
                         contracts = [Option(symbol, expiration, strike, right, 'SMART', tradingClass=symbol)
                                      for right in rights
                                      for expiration in expirations
-                                     for strike in call_strikes[:5]]
+                                     for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
 
                         contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(contracts))
@@ -642,6 +640,7 @@ class OptionsBot:
                     if condition == "breakout":
                         if right == "CALL":
                             if not self.breakout_amazon_call_options_contract == None:
+                                # await self.sell_contract(action, condition, symbol)
                                 ticker_data = self.ib.reqTickers(self.breakout_amazon_call_options_contract)
 
                                 print("Contract to sell:", self.breakout_amazon_call_options_contract)
@@ -660,8 +659,7 @@ class OptionsBot:
                                 print("Contract to sell:", self.breakout_amazon_put_options_contract)
                                 contracts_from_buy_trade = self.get_trade_contracts(symbol, condition)
                                 sell_limit_order = LimitOrder(action, contracts_from_buy_trade, ticker_data[0].ask)
-                                sell_trade = self.ib.placeOrder(self.breakout_amazon_put_options_contract,
-                                                                sell_limit_order)
+                                sell_trade = self.ib.placeOrder(self.breakout_amazon_put_options_contract, sell_limit_order)
                                 print("Sold! Trade:", sell_trade)
 
                                 self.breakout_amazon_put_options_contract = None
@@ -788,6 +786,12 @@ class OptionsBot:
                                 print("Contract to sell:", self.sma_apple_call_options_contract)
                                 contracts_from_buy_trade = self.get_trade_contracts(symbol, condition)
                                 sell_limit_order = LimitOrder(action, contracts_from_buy_trade, ticker_data[0].ask)
+
+                                print(action)
+                                print(contracts_from_buy_trade)
+                                print(ticker_data[0].ask)
+                                print(sell_limit_order)
+
                                 sell_trade = self.ib.placeOrder(self.sma_apple_call_options_contract, sell_limit_order)
                                 print("Sold! Trade:", sell_trade)
 
@@ -801,6 +805,12 @@ class OptionsBot:
                                 print("Contract to sell:", self.sma_apple_put_options_contract)
                                 contracts_from_buy_trade = self.get_trade_contracts(symbol, condition)
                                 sell_limit_order = LimitOrder(action, contracts_from_buy_trade, ticker_data[0].ask)
+
+                                print(action)
+                                print(contracts_from_buy_trade)
+                                print(ticker_data[0].ask)
+                                print(sell_limit_order)
+
                                 sell_trade = self.ib.placeOrder(self.sma_apple_put_options_contract, sell_limit_order)
                                 print("Sold! Trade:", sell_trade)
 
@@ -812,6 +822,22 @@ class OptionsBot:
                 self.update_data(result, condition, symbol)
             else:
                 print("Only action known is BUY and SELL, we don't do anything with this:", action)
+
+    async def sell_contract(self, action, condition, symbol, contract):
+        ticker_data = self.ib.reqTickers(contract)
+        print("Contract to sell:", contract)
+
+        contracts_from_buy_trade = self.get_trade_contracts(symbol, condition)
+        sell_limit_order = LimitOrder(action, contracts_from_buy_trade, ticker_data[0].ask)
+        sell_trade = None
+
+        try:
+            sell_trade = self.ib.placeOrder(contract, sell_limit_order)
+            print("Sold! Trade:", sell_trade)
+        except Exception as e:
+            print(str(e))
+            print("Couldn't sell the option.")
+            print(sell_trade)
 
     async def ticker_info(self, contract):
         # get required tick data for greeks for the option contract
@@ -958,9 +984,9 @@ class OptionsBot:
 
         number_of_contracts = cursor.execute(sqlite_insert_with_param, sqlite_data).fetchall()
 
-        print("Number of contracts returned from database for", symbol, "and condition", condition, "is", number_of_contracts)
+        print("Number of contracts returned from database for", symbol, "and condition", condition, "is", number_of_contracts[0])
 
-        return number_of_contracts
+        return number_of_contracts[0]
 
     def update_data(self, result, condition, symbol):
         print("Updating database...")
@@ -998,13 +1024,13 @@ class OptionsBot:
     def end_of_day_results(self):
         print("Retrieving end of day results...")
 
-        cursor = self.conn.cursor()
-        rows = cursor.execute(constants.END_OF_DAY_RESULTS).fetchall()
+        # cursor = self.conn.cursor()
+        rows = self.cursor.execute(constants.END_OF_DAY_RESULTS).fetchall()
 
         # for row in cursor:
         #     print(row)
 
-        df = pd.DataFrame.from_records(rows, columns=[x[0] for x in cursor.description])
+        df = pd.DataFrame.from_records(rows, columns=[x[0] for x in self.cursor.description])
         print(df)
 
     # Update options chains
