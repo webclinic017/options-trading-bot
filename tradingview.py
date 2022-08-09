@@ -1,15 +1,44 @@
-import time
 import redis
-from flask import Flask, request, views, json, render_template
+import mysql.connector
+from flask import Flask, request, json, render_template
+
+import constants
 
 app = Flask(__name__)
 
 # Redis connection
 r = redis.Redis(host='localhost', port=6379, db=0)
 
+
+@app.route('/testinsert/condition/<condition>/symbol/<symbol>/right/<right>', methods=['GET'])
+def testinsert(condition, symbol, right):
+    try:
+        cnx = mysql.connector.connect(**constants.config)
+        cursor = cnx.cursor()
+        cursor.execute(constants.TEST_INSERT, (condition, symbol, right))
+        cnx.commit()
+        cnx.close()
+    except mysql.connector.Error as err:
+        print("Failed inserting test data: {}".format(err))
+
+    return "success"
+
+
 @app.route('/', methods=['GET'])
 def dashboard():
-    return render_template("dashboard.html")
+    signals = []
+
+    try:
+        cnx = mysql.connector.connect(**constants.config)
+        cursor = cnx.cursor()
+        cursor.execute(constants.SELECT_ALL)
+        signals = cursor.fetchall()
+        cursor.close()
+    except mysql.connector.Error as err:
+        print("Failed retrieving from database: {}".format(err))
+
+    return render_template("dashboard.html", signals=signals)
+
 
 @app.route('/tradingview', methods=['POST'])
 def alert():
@@ -34,16 +63,13 @@ def alert():
         stoploss = tradeview_message['order']['stoploss']
         take_profit = tradeview_message['order']['takeProfit']
         right = tradeview_message['order']['right']
-        contracts = tradeview_message['order']['contracts']
         action = tradeview_message['order']['action']
         result = tradeview_message['order']['result']
-        afterhours = tradeview_message['order']['afterhours']
 
-        print("This is a", right, "option to", action, "for", symbol, "@", price, "and", contracts, "contracts")
+        print("This is a", right, "option to", action, "for", symbol, "@", price)
         print("Condition:", condition)
         print("Stoploss:", stoploss)
         print("Take Profit:", take_profit)
-        print("Afterhours?:", afterhours)
         print("Won/Loss/Pending?:", result)
 
         return data
