@@ -7,6 +7,7 @@ import redis
 import sqlite3
 import constants
 import json
+import mysql.connector
 from ib_insync import IB, Stock, Option, LimitOrder
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -52,16 +53,26 @@ class OptionsBot:
         self.p = self.r.pubsub()
         self.p.subscribe('tradingview')
 
-        # sqlite3 connection
+        self.cnx = mysql.connector.connect(**constants.config)
+        self.cursor = self.cnx.cursor(buffered=True)
+
         try:
-            print("Connecting to SQLite3 Database...")
-            self.conn = sqlite3.connect('trade.db', check_same_thread=False)
-            self.cursor = self.conn.cursor()
             self.cursor.execute(constants.CREATE_TABLE)
-            self.conn.commit()
-            print("Successfully Connected to SQLite3 Database!")
-        except sqlite3.Error as error:
-            print("Error occurred:", error)
+            self.cnx.commit()
+        except mysql.connector.Error as err:
+            print("Failed creating table: {}".format(err))
+            exit(1)
+
+        # sqlite3 connection
+        # try:
+        #     print("Connecting to SQLite3 Database...")
+        #     self.conn = sqlite3.connect('trade.db', check_same_thread=False)
+        #     self.cursor = self.conn.cursor()
+        #     self.cursor.execute(constants.CREATE_TABLE)
+        #     self.conn.commit()
+        #     print("Successfully Connected to SQLite3 Database!")
+        # except sqlite3.Error as error:
+        #     print("Error occurred:", error)
 
         print("Getting initial option chains...")
         print("First Stock:", constants.AMAZON)
@@ -131,16 +142,13 @@ class OptionsBot:
             stoploss = message_data['order']['stoploss']
             take_profit = message_data['order']['takeProfit']
             right = message_data['order']['right']
-            contracts = message_data['order']['contracts']
             action = message_data['order']['action']
             result = message_data['order']['result']
-            afterhours = message_data['order']['afterhours']
 
-            print("This is a", right, "option to", action, "for", symbol, "@", price, "and", contracts, "contracts")
+            print("This is a", right, "option to", action, "for", symbol, "@", price)
             print("Condition:", condition)
             print("Stoploss:", stoploss)
             print("Take Profit:", take_profit)
-            print("Afterhours?:", afterhours)
             print("Won/Loss/Pending?:", result)
 
             if action == constants.BUY:
@@ -177,7 +185,6 @@ class OptionsBot:
                         if condition == "breakout":
                             self.breakout_amazon_call_options_contract = contracts[0]
 
-                            # ask, delta, number_of_contracts = await self.ticker_info(number_of_contracts)
                             ticker_data = self.ib.reqTickers(self.breakout_amazon_call_options_contract)
 
                             # all greeks, then get ask and delta
@@ -471,7 +478,7 @@ class OptionsBot:
 
                             print("The final placed order for this trade:", placed_order)
 
-                        self.save_data(message_data, number_of_contracts, contracts[0])
+                        self.save_data(message_data, number_of_contracts, contracts[0].strike)
                         return
                 elif symbol == constants.APPLE:
                     # initial value
@@ -856,7 +863,7 @@ class OptionsBot:
 
         return number_of_contracts, delta, gamma
 
-    async def get_strike_price(self, strikes, symbol, expiration, right, profit_target):
+    async def get_strike_price(self, strikes, symbol, expiration, right, profit_target, contracts):
         # get the delta and gamma for each of those
         # calculate the number of contracts and profit for them
         # choose which has the highest profit and return that back to use as the contract to buy!
@@ -866,23 +873,15 @@ class OptionsBot:
 
         # Error 200, reqId 83: No security definition has been found for the request, contract: Option(symbol='AMZN', lastTradeDateOrContractMonth='20220805', strike=141.5, right='CALL', exchange='SMART')
 
-        contract_a = None
-        contract_b = None
-        contract_c = None
-        contract_d = None
-
-        contract_array = [contract_a, contract_b, contract_c, contract_d]
         number_of_contracts_array = []
         profit_array = []
 
-        print(contract_array)
-        print(len(contract_array))
-
         print(len(strikes))
+        print(len(contracts))
 
-        for i in range(4):
-            contract_array[i] = self.create_options_contract(symbol, expiration, strikes[i], right)
-            number_of_contracts, delta, gamma = await self.ticker_info(contract_array[i])
+        for i in range(len(contracts)):
+            contracts[i] = self.create_options_contract(symbol, expiration, strikes[i], right)
+            number_of_contracts, delta, gamma = await self.ticker_info(contracts[i])
             number_of_contracts_array.append(number_of_contracts)
             profit_array.append(self.calculate_estimated_profit(delta, gamma, profit_target, number_of_contracts))
 
@@ -909,6 +908,11 @@ class OptionsBot:
         print("Calculating the correct Strike price...")
 
         risk_amount = 0
+        positive_delta = delta
+
+        if delta < 0:
+            positive_delta = delta * -1
+            print("This was a PUT order, so we are calculating delta given:", delta, " with positive delta:", positive_delta)
 
         if constants.BALANCE <= 1000:
             risk_amount = constants.BALANCE * .05
@@ -917,16 +921,13 @@ class OptionsBot:
         else:
             risk_amount = constants.BALANCE * .01
 
-        number_of_contracts = risk_amount / ((delta * 100) / 2)
+        number_of_contracts = risk_amount / ((positive_delta * 100) / 2)
         rounded_contracts = math.floor(number_of_contracts)
 
         print("The number of contracts for delta of [", delta, "] =", number_of_contracts)
         print("Rounded down the number of contracts is", rounded_contracts)
 
         # on test day, just return 1 for the number contracts
-        if rounded_contracts < 0:
-            rounded_contracts = rounded_contracts * -1
-
         return rounded_contracts
 
     def create_options_contract(self, symbol, expiration, strike, right):
@@ -952,29 +953,27 @@ class OptionsBot:
             strike_price,
             message_data['order']['stoploss'],
             message_data['order']['takeProfit'],
-            message_data['order']['result'],
-            message_data['order']['afterhours'],
-            time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+            message_data['order']['result']
         )
 
         print(sqlite_insert_with_param)
         print(sqlite_data)
 
-        self.conn.cursor().execute(sqlite_insert_with_param, sqlite_data)
-        self.conn.commit()
+        self.cnx.cursor().execute(sqlite_insert_with_param, sqlite_data)
+        self.cnx.commit()
 
         print("Saved to database!")
 
     def get_matching_trade(self, symbol, condition, right, result):
-        cursor = self.conn.cursor()
+        cursor = self.cnx.cursor()
         if result == "W":
             cursor.execute(constants.MATCHING_TRADE_PROFIT, (symbol, condition, right))
         else:
             cursor.execute(constants.MATCHING_TRADE_STOPLOSS, (symbol, condition, right))
 
     def get_trade_contracts(self, symbol, condition):
-        self.conn.row_factory = lambda cursor, row: row[0]
-        cursor = self.conn.cursor()
+        self.cnx.row_factory = lambda cursor, row: row[0]
+        cursor = self.cnx.cursor()
 
         sqlite_insert_with_param = constants.GET_MATCHING_TRADE
         sqlite_data = (
@@ -991,16 +990,18 @@ class OptionsBot:
     def update_data(self, result, condition, symbol):
         print("Updating database...")
 
-        cursor = self.conn.cursor()
-        cursor.execute(constants.UPDATE_DATA, (result, condition, symbol))
-        self.conn.commit()
+        cursor = self.cnx.cursor()
+        sql_update_query = constants.UPDATE_DATA
+        sql_input_data = (result, condition, symbol)
+        cursor.execute(sql_update_query, sql_input_data)
+        self.cnx.commit()
 
         rows_affected = cursor.rowcount
 
         print("Updated", rows_affected, "rows in the database Successfully!")
 
     def insert_option_contract(self, condition, contract):
-        cursor = self.conn.cursor()
+        cursor = self.cnx.cursor()
         print("Inserting option contract into database...")
 
         sqlite_insert_with_param = constants.INSERT_OPTION
@@ -1017,7 +1018,7 @@ class OptionsBot:
 
         cursor.execute(sqlite_insert_with_param, sqlite_data)
 
-        self.conn.commit()
+        self.cnx.commit()
 
         print("Inserted into Database:", sqlite_data)
 
