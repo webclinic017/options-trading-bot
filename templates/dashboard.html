@@ -391,14 +391,15 @@
                                 </div> -->
                                 <table class="table">
                                     <tr>
-                                        <th>timestamp</th>
+                                        <th>id</th>
                                         <th>symbol</th>
+                                        <th>condition</th>
                                         <th>action</th>
                                         <th>right</th>
                                         <th># of contracts</th>
-                                        <th>price</th>
+                                        <th>result</th>
                                     </tr>
-                                    {% for signal in signalz %}
+                                    {% for signal in signals %}
                                     <tr>
                                         <td>{{ signal[0] }}</td>
                                         <td>{{ signal[1] }}</td>
@@ -406,6 +407,7 @@
                                         <td>{{ signal[3] }}</td>
                                         <td>{{ signal[4] }}</td>
                                         <td>{{ signal[5] }}</td>
+                                        <td>{{ signal[10] }}</td>
                                     </tr>
                                     {% endfor %}
                                 </table>
