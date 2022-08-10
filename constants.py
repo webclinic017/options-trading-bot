@@ -39,7 +39,7 @@ CREATE_TABLE = """
         trade_right     VARCHAR(4) NOT NULL,
         contracts       INT NOT NULL,
         entryprice      DECIMAL(10, 3),
-        strikeprice     DECIMAL(10, 3) NOT NULL,
+        strikeprice     VARCHAR(10) NOT NULL,
         stoploss        DECIMAL(10, 3),
         takeProfit      DECIMAL(10, 3),
         result          CHAR(1) NOT NULL,
@@ -50,37 +50,50 @@ CREATE_TABLE = """
 
 CREATE_OPTIONS_TABLE = """
     CREATE TABLE IF NOT EXISTS options (
-        trade_condition,
-        symbol,
-        lastTradeDateOrContractMonth,
-        strike,
-        trade_right,
-        exchange,
-        tradingClass,
-        timestamp
+        option_id                     INT(11) NOT NULL AUTO_INCREMENT,
+        trade_condition               VARCHAR(20) NOT NULL,
+        symbol                        VARCHAR(10) NOT NULL,
+        lastTradeDateOrContractMonth  VARCHAR(20) NOT NULL, 
+        strike                        VARCHAR(10) NOT NULL,
+        trade_right                   VARCHAR(4) NOT NULL,
+        exchange                      VARCHAR(20) NOT NULL,
+        tradingClass                  VARCHAR(20) NOT NULL,
+        contracts                     INT NOT NULL,
+        timestamp                     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (option_id)
     )
 """
 
-SELECT_OPTION = """SELECT * FROM options WHERE condition = ? AND symbol = ?"""
-DELETE_OPTION = """DELETE FROM options WHERE condition = ? AND symbol = ?"""
+GET_OPTION_CONTRACT = """
+    SELECT symbol, lastTradeDateOrContractMonth, strike, trade_right, contracts 
+        FROM options 
+        WHERE 
+            symbol = %s AND 
+            trade_condition = %s
+"""
+DELETE_OPTION = """DELETE FROM options WHERE symbol = %s AND trade_condition = %s"""
 INSERT_OPTION = """
     INSERT INTO options
         (
-            condition, 
+            trade_condition, 
             symbol, 
             lastTradeDateOrContractMonth, 
             strike, 
-            right, 
+            trade_right, 
             exchange, 
-            tradingClass, 
-            timestamp
+            tradingClass,
+            contracts
         )
-    VALUES(?, ?, ?, ?, ?, ?, ?, ?);
+    VALUES(%s, %s, %s, %s, %s, %s, %s, %s);
 """
 
-END_OF_DAY_RESULTS = """SELECT result, count(*) FROM signals where timestamp > date('now', '0 days') GROUP BY result"""
+END_OF_DAY_RESULTS = """
+    SELECT result, count(*) 
+        FROM signals 
+        WHERE timestamp > DATE(NOW()) - INTERVAL 1 DAY GROUP BY result
+"""
 DELETE_ALL = """DELETE FROM signals"""
-SELECT_ALL = """SELECT * FROM signals order by id desc"""
+SELECT_ALL = """SELECT * FROM signals"""
 INSERT_DATA = """
     INSERT INTO signals
         (
@@ -124,6 +137,6 @@ UPDATE_DATA = """
         symbol = %s
 """
 
-MATCHING_TRADE_STOPLOSS = """select strikeprice from signals where stoploss = ? and trade_condition = ? and right = ?"""
-MATCHING_TRADE_PROFIT = """select strikeprice from signals where takeprofit = ? and trade_condition = ? and right = ?"""
-GET_MATCHING_TRADE = """select contracts from signals where symbol = ? and trade_condition = ? and result = 'P'"""
+MATCHING_TRADE_STOPLOSS = """select strikeprice from signals where stoploss = %s and trade_condition = %s and right = %s"""
+MATCHING_TRADE_PROFIT = """select strikeprice from signals where takeprofit = %s and trade_condition = %s and right = %s"""
+GET_MATCHING_TRADE = """select contracts from signals where symbol = %s and trade_condition = %s and result = 'P'"""
