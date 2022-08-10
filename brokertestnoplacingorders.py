@@ -4,7 +4,6 @@ import pandas as pd
 import asyncio
 import nest_asyncio
 import redis
-import sqlite3
 import constants
 import json
 import mysql.connector
@@ -58,21 +57,11 @@ class OptionsBot:
 
         try:
             self.cursor.execute(constants.CREATE_TABLE)
+            self.cursor.execute(constants.CREATE_OPTIONS_TABLE)
             self.cnx.commit()
         except mysql.connector.Error as err:
             print("Failed creating table: {}".format(err))
             exit(1)
-
-        # sqlite3 connection
-        # try:
-        #     print("Connecting to SQLite3 Database...")
-        #     self.conn = sqlite3.connect('trade.db', check_same_thread=False)
-        #     self.cursor = self.conn.cursor()
-        #     self.cursor.execute(constants.CREATE_TABLE)
-        #     self.conn.commit()
-        #     print("Successfully Connected to SQLite3 Database!")
-        # except sqlite3.Error as error:
-        #     print("Error occurred:", error)
 
         print("Getting initial option chains...")
         print("First Stock:", constants.AMAZON)
@@ -185,33 +174,50 @@ class OptionsBot:
                         if condition == "breakout":
                             self.breakout_amazon_call_options_contract = contracts[0]
 
-                            ticker_data = self.ib.reqTickers(self.breakout_amazon_call_options_contract)
-
-                            # all greeks, then get ask and delta
-                            ask_greeks = ticker_data[0].askGreeks
-                            ask = ticker_data[0].ask
-                            delta = ask_greeks.delta
-
-                            # calculate number of contracts
-                            number_of_contracts = self.calculate_contracts(delta)
-
-                            # create limit order with the ask price
-                            limit_order = LimitOrder(action, number_of_contracts, ask)
-
-                            print("All ticker data:", ticker_data)
-                            print("Ask Price:", ask)
-                            print("Ask Greek delta", delta)
+                            # ticker_data = self.ib.reqTickers(self.breakout_amazon_call_options_contract)
+                            #
+                            # # all greeks, then get ask and delta
+                            # ask_greeks = ticker_data[0].askGreeks
+                            # ask = ticker_data[0].ask
+                            # delta = ask_greeks.delta
+                            #
+                            # # calculate number of contracts
+                            # number_of_contracts = self.calculate_contracts(delta)
+                            #
+                            # # insert the option for later use if needed in database
+                            # self.insert_option_contract(
+                            #     condition,
+                            #     self.breakout_amazon_call_options_contract,
+                            #     number_of_contracts
+                            # )
+                            #
+                            # # create limit order with the ask price
+                            # limit_order = LimitOrder(action, number_of_contracts, ask)
+                            #
+                            # print("All ticker data:", ticker_data)
+                            # print("Ask Price:", ask)
+                            # print("Ask Greek delta", delta)
                             print("Contract placed:", self.breakout_amazon_call_options_contract)
-                            print("Options LimitOrder to place:", limit_order)
+                            # print("Options LimitOrder to place:", limit_order)
 
-                            placed_order = self.ib.placeOrder(
-                                self.breakout_amazon_call_options_contract,
-                                limit_order
-                            )
+                            # placed_order = self.ib.placeOrder(
+                            #     self.breakout_amazon_call_options_contract,
+                            #     limit_order
+                            # )
 
-                            print("The final placed order for this trade:", placed_order)
+                            print("The final placed order for this trade:")
                         elif condition == "sma":
                             self.sma_amazon_call_options_contract = contracts[0]
+
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(condition, self.sma_amazon_call_options_contract)
+
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(
+                                condition,
+                                self.sma_amazon_call_options_contract,
+                                number_of_contracts
+                            )
 
                             # get required tick data for greeks for the option contract
                             ticker_data = self.ib.reqTickers(self.sma_amazon_call_options_contract)
@@ -268,6 +274,13 @@ class OptionsBot:
                             # calculate number of contracts
                             number_of_contracts = self.calculate_contracts(delta)
 
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(
+                                condition,
+                                self.breakout_amazon_put_options_contract,
+                                number_of_contracts
+                            )
+
                             # create limit order with the ask price
                             limit_order = LimitOrder(action, number_of_contracts, ask)
 
@@ -296,6 +309,13 @@ class OptionsBot:
 
                             # calculate number of contracts
                             number_of_contracts = self.calculate_contracts(delta)
+
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(
+                                condition,
+                                self.sma_amazon_put_options_contract,
+                                number_of_contracts
+                            )
 
                             # create limit order with the ask price
                             limit_order = LimitOrder(action, number_of_contracts, ask)
@@ -356,8 +376,15 @@ class OptionsBot:
                             ask = ticker_data[0].ask
                             delta = ask_greeks.delta
 
-                            # # calculate number of contracts
+                            # calculate number of contracts
                             number_of_contracts = self.calculate_contracts(delta)
+
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(
+                                condition,
+                                self.breakout_nvidia_call_options_contract,
+                                number_of_contracts
+                            )
 
                             # create limit order with the ask price
                             limit_order = LimitOrder(action, number_of_contracts, ask)
@@ -387,6 +414,13 @@ class OptionsBot:
 
                             # calculate number of contracts
                             number_of_contracts = self.calculate_contracts(delta)
+
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(
+                                condition,
+                                self.sma_nvidia_call_options_contract,
+                                number_of_contracts
+                            )
 
                             # create limit order with the ask price
                             limit_order = LimitOrder(action, number_of_contracts, ask)
@@ -433,6 +467,13 @@ class OptionsBot:
                             # calculate number of contracts
                             number_of_contracts = self.calculate_contracts(delta)
 
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(
+                                condition,
+                                self.breakout_nvidia_put_options_contract,
+                                number_of_contracts
+                            )
+
                             # create limit order with the ask price
                             limit_order = LimitOrder(action, number_of_contracts, ask)
 
@@ -461,6 +502,13 @@ class OptionsBot:
 
                             # calculate number of contracts
                             number_of_contracts = self.calculate_contracts(delta)
+
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(
+                                condition,
+                                self.sma_nvidia_put_options_contract,
+                                number_of_contracts
+                            )
 
                             # create limit order with the ask price
                             limit_order = LimitOrder(action, number_of_contracts, ask)
@@ -525,6 +573,13 @@ class OptionsBot:
                             # calculate number of contracts
                             number_of_contracts = self.calculate_contracts(delta)
 
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(
+                                condition,
+                                self.breakout_apple_call_options_contract,
+                                number_of_contracts
+                            )
+
                             # create limit order with the ask price
                             limit_order = LimitOrder(action, number_of_contracts, ask)
 
@@ -550,6 +605,13 @@ class OptionsBot:
 
                             # calculate number of contracts
                             number_of_contracts = self.calculate_contracts(delta)
+
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(
+                                condition,
+                                self.sma_apple_call_options_contract,
+                                number_of_contracts
+                            )
 
                             # create limit order with the ask price
                             limit_order = LimitOrder(action, number_of_contracts, ask)
@@ -595,6 +657,13 @@ class OptionsBot:
                             # calculate number of contracts
                             number_of_contracts = self.calculate_contracts(delta)
 
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(
+                                condition,
+                                self.breakout_apple_put_options_contract,
+                                number_of_contracts
+                            )
+
                             # create limit order with the ask price
                             limit_order = LimitOrder(action, number_of_contracts, ask)
 
@@ -624,6 +693,13 @@ class OptionsBot:
                             # calculate number of contracts
                             number_of_contracts = self.calculate_contracts(delta)
 
+                            # insert the option for later use if needed in database
+                            self.insert_option_contract(
+                                condition,
+                                self.sma_apple_put_options_contract,
+                                number_of_contracts
+                            )
+
                             # create limit order with the ask price
                             limit_order = LimitOrder(action, number_of_contracts, ask)
 
@@ -643,38 +719,52 @@ class OptionsBot:
                         self.save_data(message_data, number_of_contracts, contracts[0].strike)
                         return
             elif action == constants.SELL:
+                # await self.sell_contract(action, condition, symbol, self.breakout_amazon_call_options_contract)
                 if symbol == constants.AMAZON:
                     if condition == "breakout":
                         if right == "CALL":
-                            if not self.breakout_amazon_call_options_contract == None:
-                                # await self.sell_contract(action, condition, symbol)
-                                ticker_data = self.ib.reqTickers(self.breakout_amazon_call_options_contract)
-
-                                print("Contract to sell:", self.breakout_amazon_call_options_contract)
-                                contracts_from_buy_trade = self.get_trade_contracts(symbol, condition)
-                                sell_limit_order = LimitOrder(action, contracts_from_buy_trade, ticker_data[0].ask)
-                                sell_trade = self.ib.placeOrder(self.breakout_amazon_call_options_contract, sell_limit_order)
-                                print("Sold! Trade:", sell_trade)
-
-                                self.breakout_amazon_call_options_contract = None
-                            else:
-                                print("Can't find a contract for", symbol, " with condition", condition)
+                            await self.sell_contract(action, condition, symbol,
+                                                     self.breakout_amazon_call_options_contract)
+                            self.breakout_amazon_call_options_contract = None
+                            print(self.breakout_amazon_call_options_contract)
+                            # foundInDatabase = False
+                            # contracts_from_buy_trade = 0
+                            #
+                            # if self.breakout_amazon_call_options_contract is None:
+                            #     print("Didn't have contract stored in session, checking database.")
+                            #     retrieved_contract, number_of_contracts = self.check_for_options_contract(symbol, condition)
+                            #
+                            #     if retrieved_contract:
+                            #         foundInDatabase = True
+                            #         contracts_from_buy_trade = number_of_contracts
+                            #         self.breakout_amazon_call_options_contract = retrieved_contract
+                            #
+                            # if self.breakout_amazon_call_options_contract:
+                            #     ticker_data = self.ib.reqTickers(self.breakout_amazon_call_options_contract)
+                            #
+                            #     print("Contract to sell:", self.breakout_amazon_call_options_contract)
+                            #
+                            #     if not foundInDatabase:
+                            #         contracts_from_buy_trade = self.get_trade_contracts(symbol, condition)
+                            #
+                            #     sell_limit_order = LimitOrder(action, contracts_from_buy_trade, ticker_data[0].ask)
+                            #     sell_trade = self.ib.placeOrder(self.breakout_amazon_call_options_contract,
+                            #                                     sell_limit_order)
+                            #     print("Sold! Trade:", sell_trade)
+                            #
+                            #     self.breakout_amazon_call_options_contract = None
+                            #     self.delete_options_contract(symbol, condition)
+                            # else:
+                            #     print("Couldn't find in database and didn't have in current session to sell.")
                         if right == "PUT":
-                            if not self.breakout_amazon_put_options_contract == None:
-                                ticker_data = self.ib.reqTickers(self.breakout_amazon_put_options_contract)
+                            await self.sell_contract(action, condition, symbol,
+                                                     self.breakout_amazon_put_options_contract)
+                            self.breakout_amazon_put_options_contract = None
+                            print(self.breakout_amazon_put_options_contract)
 
-                                print("Contract to sell:", self.breakout_amazon_put_options_contract)
-                                contracts_from_buy_trade = self.get_trade_contracts(symbol, condition)
-                                sell_limit_order = LimitOrder(action, contracts_from_buy_trade, ticker_data[0].ask)
-                                sell_trade = self.ib.placeOrder(self.breakout_amazon_put_options_contract, sell_limit_order)
-                                print("Sold! Trade:", sell_trade)
-
-                                self.breakout_amazon_put_options_contract = None
-                            else:
-                                print("Can't find a contract for", symbol, " with condition", condition)
                     if condition == "sma":
                         if right == "CALL":
-                            if not self.sma_amazon_call_options_contract == None:
+                            if self.sma_amazon_call_options_contract != None:
                                 ticker_data = self.ib.reqTickers(self.sma_amazon_call_options_contract)
 
                                 print("Contract to sell:", self.sma_amazon_call_options_contract)
@@ -687,7 +777,7 @@ class OptionsBot:
                             else:
                                 print("Can't find a contract for", symbol, " with condition", condition)
                         if right == "PUT":
-                            if not self.sma_amazon_put_options_contract == None:
+                            if self.sma_amazon_put_options_contract != None:
                                 ticker_data = self.ib.reqTickers(self.sma_amazon_put_options_contract)
 
                                 print("Contract to sell:", self.sma_amazon_put_options_contract)
@@ -702,7 +792,7 @@ class OptionsBot:
                 elif symbol == constants.NVIDIA:
                     if condition == "breakout":
                         if right == "CALL":
-                            if not self.breakout_nvidia_call_options_contract == None:
+                            if self.breakout_nvidia_call_options_contract != None:
                                 ticker_data = self.ib.reqTickers(self.breakout_nvidia_call_options_contract)
 
                                 print(ticker_data)
@@ -717,7 +807,7 @@ class OptionsBot:
                             else:
                                 print("Can't find a contract for", symbol, " with condition", condition)
                         if right == "PUT":
-                            if not self.breakout_nvidia_put_options_contract == None:
+                            if self.breakout_nvidia_put_options_contract != None:
                                 ticker_data = self.ib.reqTickers(self.breakout_nvidia_put_options_contract)
 
                                 print("Contract to sell:", self.breakout_nvidia_put_options_contract)
@@ -732,7 +822,7 @@ class OptionsBot:
                                 print("Can't find a contract for", symbol, " with condition", condition)
                     if condition == "sma":
                         if right == "CALL":
-                            if not self.sma_nvidia_call_options_contract == None:
+                            if self.sma_nvidia_call_options_contract != None:
                                 ticker_data = self.ib.reqTickers(self.sma_nvidia_call_options_contract)
 
                                 print("Contract to sell:", self.sma_nvidia_call_options_contract)
@@ -745,7 +835,7 @@ class OptionsBot:
                             else:
                                 print("Can't find a contract for", symbol, " with condition", condition)
                         if right == "PUT":
-                            if not self.sma_nvidia_put_options_contract == None:
+                            if self.sma_nvidia_put_options_contract != None:
                                 ticker_data = self.ib.reqTickers(self.sma_nvidia_put_options_contract)
 
                                 print("Contract to sell:", self.sma_nvidia_put_options_contract)
@@ -760,7 +850,7 @@ class OptionsBot:
                 elif symbol == constants.APPLE:
                     if condition == "breakout":
                         if right == "CALL":
-                            if not self.breakout_apple_call_options_contract == None:
+                            if self.breakout_apple_call_options_contract != None:
                                 ticker_data = self.ib.reqTickers(self.breakout_apple_call_options_contract)
 
                                 print("Contract to sell:", self.breakout_apple_call_options_contract)
@@ -773,7 +863,7 @@ class OptionsBot:
                             else:
                                 print("Can't find a contract for", symbol, " with condition", condition)
                         if right == "PUT":
-                            if not self.breakout_apple_put_options_contract == None:
+                            if self.breakout_apple_put_options_contract != None:
                                 ticker_data = self.ib.reqTickers(self.breakout_apple_put_options_contract)
 
                                 print("Contract to sell:", self.breakout_apple_put_options_contract)
@@ -787,7 +877,7 @@ class OptionsBot:
                                 print("Can't find a contract for", symbol, " with condition", condition)
                     if condition == "sma":
                         if right == "CALL":
-                            if not self.sma_apple_call_options_contract == None:
+                            if self.sma_apple_call_options_contract != None:
                                 ticker_data = self.ib.reqTickers(self.sma_apple_call_options_contract)
 
                                 print("Contract to sell:", self.sma_apple_call_options_contract)
@@ -806,7 +896,7 @@ class OptionsBot:
                             else:
                                 print("Can't find a contract for", symbol, " with condition", condition)
                         if right == "PUT":
-                            if not self.sma_apple_put_options_contract == None:
+                            if self.sma_apple_put_options_contract != None:
                                 ticker_data = self.ib.reqTickers(self.sma_apple_put_options_contract)
 
                                 print("Contract to sell:", self.sma_apple_put_options_contract)
@@ -830,21 +920,49 @@ class OptionsBot:
             else:
                 print("Only action known is BUY and SELL, we don't do anything with this:", action)
 
+    def check_for_option_in_database(self, condition, symbol):
+        print("Checking for Option in database...")
+
+        cursor = self.cnx.cursor()
+        sql_query = constants.GET_OPTION_CONTRACT
+        sql_input = (condition, symbol)
+
+        cursor.execute(sql_query, sql_input)
+        contract = cursor.fetchone()
+
+        print(contract)
+
     async def sell_contract(self, action, condition, symbol, contract):
-        ticker_data = self.ib.reqTickers(contract)
-        print("Contract to sell:", contract)
+        foundInDatabase = False
+        contracts_from_buy_trade = 0
 
-        contracts_from_buy_trade = self.get_trade_contracts(symbol, condition)
-        sell_limit_order = LimitOrder(action, contracts_from_buy_trade, ticker_data[0].ask)
-        sell_trade = None
+        if contract is None:
+            print("Didn't have contract stored in session, checking database.")
+            retrieved_contract, number_of_contracts = self.check_for_options_contract(symbol, condition)
 
-        try:
-            sell_trade = self.ib.placeOrder(contract, sell_limit_order)
-            print("Sold! Trade:", sell_trade)
-        except Exception as e:
-            print(str(e))
-            print("Couldn't sell the option.")
-            print(sell_trade)
+            if retrieved_contract:
+                foundInDatabase = True
+                contracts_from_buy_trade = number_of_contracts
+                contract = retrieved_contract
+
+        if contract:
+            ticker_data = self.ib.reqTickers(contract)
+
+            print("Contract to sell:", contract)
+
+            if not foundInDatabase:
+                contracts_from_buy_trade = self.get_trade_contracts(symbol, condition)
+
+            sell_limit_order = LimitOrder(action, contracts_from_buy_trade, ticker_data[0].ask)
+            # sell_trade = self.ib.placeOrder(contract,
+            #                                 sell_limit_order)
+            # print("Sold! Trade:", sell_trade)
+
+            print("Sold trade!")
+
+            self.delete_options_contract(symbol, condition)
+        else:
+            print("Couldn't find in database and didn't have in current session to sell.")
 
     async def ticker_info(self, contract):
         # get required tick data for greeks for the option contract
@@ -854,7 +972,6 @@ class OptionsBot:
 
         # all greeks, then get ask and delta
         ask_greeks = ticker_data[0].askGreeks
-        ask = ticker_data[0].ask
         delta = ask_greeks.delta
         gamma = ask_greeks.gamma
 
@@ -939,6 +1056,17 @@ class OptionsBot:
             constants.SMART
         )
 
+    def delete_options_contract(self, symbol, condition):
+        print("Deleting Option Contract from database since we sold!")
+
+        sql_query = constants.DELETE_OPTION
+        sql_input = (symbol, condition)
+
+        self.cnx.cursor().execute(sql_query, sql_input)
+        self.cnx.commit()
+
+        print("Successfully deleted from database!")
+
     def save_data(self, message_data, number_of_contracts, strike_price):
         print("Saving to database...")
 
@@ -964,13 +1092,6 @@ class OptionsBot:
 
         print("Saved to database!")
 
-    def get_matching_trade(self, symbol, condition, right, result):
-        cursor = self.cnx.cursor()
-        if result == "W":
-            cursor.execute(constants.MATCHING_TRADE_PROFIT, (symbol, condition, right))
-        else:
-            cursor.execute(constants.MATCHING_TRADE_STOPLOSS, (symbol, condition, right))
-
     def get_trade_contracts(self, symbol, condition):
         self.cnx.row_factory = lambda cursor, row: row[0]
         cursor = self.cnx.cursor()
@@ -981,11 +1102,15 @@ class OptionsBot:
             condition
         )
 
-        number_of_contracts = cursor.execute(sqlite_insert_with_param, sqlite_data).fetchall()
+        cursor.execute(sqlite_insert_with_param, sqlite_data)
+        number_of_contracts = cursor.fetchone()
+
+        print(number_of_contracts[0])
 
         print("Number of contracts returned from database for", symbol, "and condition", condition, "is", number_of_contracts[0])
 
         return number_of_contracts[0]
+
 
     def update_data(self, result, condition, symbol):
         print("Updating database...")
@@ -1000,9 +1125,11 @@ class OptionsBot:
 
         print("Updated", rows_affected, "rows in the database Successfully!")
 
-    def insert_option_contract(self, condition, contract):
+    def insert_option_contract(self, condition, contract, number_of_contracts):
+        # have a static db connection and then get cursor from that
         cursor = self.cnx.cursor()
         print("Inserting option contract into database...")
+        print("The contract to insert:", contract)
 
         sqlite_insert_with_param = constants.INSERT_OPTION
         sqlite_data = (
@@ -1013,7 +1140,7 @@ class OptionsBot:
             contract.right,
             contract.exchange,
             contract.tradingClass,
-            time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+            number_of_contracts
         )
 
         cursor.execute(sqlite_insert_with_param, sqlite_data)
@@ -1022,14 +1149,31 @@ class OptionsBot:
 
         print("Inserted into Database:", sqlite_data)
 
+    def check_for_options_contract(self, symbol, condition):
+        print("Didn't have contract to Sell stored in session, checking database...")
+
+        cursor = self.cnx.cursor()
+        sql_query = constants.GET_OPTION_CONTRACT
+        sql_input = (symbol, condition)
+        cursor.execute(sql_query, sql_input)
+
+        fsymbol, fexpiration, fstrike, fright, number_of_contracts = cursor.fetchone()
+
+        found_contract = self.create_options_contract(fsymbol, fexpiration, fstrike, fright)
+        self.ib.qualifyContracts(found_contract)
+
+        print(found_contract)
+
+        return found_contract, number_of_contracts
+
+
     def end_of_day_results(self):
         print("Retrieving end of day results...")
 
-        # cursor = self.conn.cursor()
-        rows = self.cursor.execute(constants.END_OF_DAY_RESULTS).fetchall()
+        cursor = self.cnx.cursor()
+        cursor.execute(constants.END_OF_DAY_RESULTS)
 
-        # for row in cursor:
-        #     print(row)
+        rows = cursor.fetchall()
 
         df = pd.DataFrame.from_records(rows, columns=[x[0] for x in self.cursor.description])
         print(df)
