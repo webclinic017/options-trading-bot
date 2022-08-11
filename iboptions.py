@@ -120,7 +120,7 @@ class OptionsBot:
         message = self.p.get_message()
 
         if message is not None and message['type'] == 'message':
-            self.check_connection()
+            await self.check_connection()
 
             message_data = json.loads(message['data'])
 
@@ -169,34 +169,30 @@ class OptionsBot:
                                      for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
 
                         valid_contracts = self.ib.qualifyContracts(*contracts)
-                        print("Number of valid contracts:", len(contracts))
-                        print(contracts)
-
-                        selected_strike = 0.0
+                        print("Number of valid contracts:", len(valid_contracts))
+                        print("All valid contracts:", valid_contracts)
 
                         if condition == "breakout":
                             self.breakout_amazon_call_options_contract = valid_contracts[0]
 
                             await self.place_options_order(
+                                message_data,
                                 action,
                                 condition,
                                 valid_contracts,
                                 self.breakout_amazon_call_options_contract
                             )
-
-                            selected_strike = self.breakout_amazon_call_options_contract.strike
                         elif condition == "sma":
-                            self.sma_amazon_call_options_contract = contracts[0]
+                            self.sma_amazon_call_options_contract = valid_contracts[0]
 
                             await self.place_options_order(
+                                message_data,
                                 action,
                                 condition,
                                 valid_contracts,
                                 self.sma_amazon_call_options_contract
                             )
 
-                            selected_strike = self.sma_amazon_call_options_contract.strike
-                        self.save_data(message_data, number_of_contracts, selected_strike)
                         return
                     else:
                         rights = ['P']
@@ -206,84 +202,31 @@ class OptionsBot:
                                      for expiration in expirations
                                      for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
 
-                        contracts = self.ib.qualifyContracts(*contracts)
-                        print("Number of valid contracts:", len(contracts))
-                        print(contracts)
+                        valid_contracts = self.ib.qualifyContracts(*contracts)
+                        print("Number of valid contracts:", len(valid_contracts))
+                        print(valid_contracts)
 
                         if condition == "breakout":
-                            self.breakout_amazon_put_options_contract = contracts[0]
+                            self.breakout_amazon_put_options_contract = valid_contracts[0]
 
-                            # get required tick data for greeks for the option contract
-                            ticker_data = self.ib.reqTickers(self.breakout_amazon_put_options_contract)
-
-                            # all greeks, then get ask and delta
-                            ask_greeks = ticker_data[0].askGreeks
-                            ask = ticker_data[0].ask
-                            delta = ask_greeks.delta
-
-                            # calculate number of contracts
-                            number_of_contracts = self.calculate_contracts(delta)
-
-                            # insert the option for later use if needed in database
-                            self.insert_option_contract(
+                            await self.place_options_order(
+                                message_data,
+                                action,
                                 condition,
-                                self.breakout_amazon_put_options_contract,
-                                number_of_contracts
+                                valid_contracts,
+                                self.breakout_amazon_put_options_contract
                             )
-
-                            # create limit order with the ask price
-                            limit_order = LimitOrder(action, number_of_contracts, ask)
-
-                            print("All ticker data:", ticker_data)
-                            print("Ask Price:", ask)
-                            print("Ask Greek delta", ask_greeks.delta)
-                            print("Contract placed:", self.breakout_amazon_put_options_contract)
-                            print("Options LimitOrder to place:", limit_order)
-
-                            placed_order = self.ib.placeOrder(
-                                self.breakout_amazon_put_options_contract,
-                                limit_order
-                            )
-
-                            print("The final placed order for this trade:", placed_order)
                         elif condition == "sma":
-                            self.sma_amazon_put_options_contract = contracts[0]
+                            self.sma_amazon_put_options_contract = valid_contracts[0]
 
-                            # get required tick data for greeks for the option contract
-                            ticker_data = self.ib.reqTickers(self.sma_amazon_put_options_contract)
-
-                            # all greeks, then get ask and delta
-                            ask_greeks = ticker_data[0].askGreeks
-                            ask = ticker_data[0].ask
-                            delta = ask_greeks.delta
-
-                            # calculate number of contracts
-                            number_of_contracts = self.calculate_contracts(delta)
-
-                            # insert the option for later use if needed in database
-                            self.insert_option_contract(
+                            await self.place_options_order(
+                                message_data,
+                                action,
                                 condition,
-                                self.sma_amazon_put_options_contract,
-                                number_of_contracts
+                                valid_contracts,
+                                self.sma_amazon_put_options_contract
                             )
 
-                            # create limit order with the ask price
-                            limit_order = LimitOrder(action, number_of_contracts, ask)
-
-                            print("All ticker data:", ticker_data)
-                            print("Ask Price:", ask)
-                            print("Ask Greek delta", ask_greeks.delta)
-                            print("Contract placed:", self.sma_amazon_put_options_contract)
-                            print("Options LimitOrder to place:", limit_order)
-
-                            placed_order = self.ib.placeOrder(
-                                self.sma_amazon_put_options_contract,
-                                limit_order
-                            )
-
-                            print("The final placed order for this trade:", placed_order)
-
-                        self.save_data(message_data, number_of_contracts, contracts[0].strike)
                         return
                 elif symbol == constants.NVIDIA:
                     # initial value
@@ -312,85 +255,31 @@ class OptionsBot:
                                      for expiration in expirations
                                      for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
 
-                        contracts = self.ib.qualifyContracts(*contracts)
-                        print("Number of valid contracts:", len(contracts))
-                        print(contracts)
+                        valid_contracts = self.ib.qualifyContracts(*contracts)
+                        print("Number of valid contracts:", len(valid_contracts))
+                        print(valid_contracts)
 
                         if condition == "breakout":
-                            self.breakout_nvidia_call_options_contract = contracts[0]
+                            self.breakout_nvidia_call_options_contract = valid_contracts[0]
 
-                            # get required tick data for greeks for the option contract
-                            ticker_data = self.ib.reqTickers(self.breakout_nvidia_call_options_contract)
-
-                            # all greeks, then get ask and delta
-                            ask_greeks = ticker_data[0].askGreeks
-                            ask = ticker_data[0].ask
-                            delta = ask_greeks.delta
-
-                            # calculate number of contracts
-                            number_of_contracts = self.calculate_contracts(delta)
-
-                            # insert the option for later use if needed in database
-                            self.insert_option_contract(
+                            await self.place_options_order(
+                                message_data,
+                                action,
                                 condition,
-                                self.breakout_nvidia_call_options_contract,
-                                number_of_contracts
+                                valid_contracts,
+                                self.breakout_nvidia_call_options_contract
                             )
-
-                            # create limit order with the ask price
-                            limit_order = LimitOrder(action, number_of_contracts, ask)
-
-                            print("All ticker data:", ticker_data)
-                            print("Ask Price:", ask)
-                            print("Ask Greek delta", ask_greeks.delta)
-                            print("Contract placed:", self.breakout_nvidia_call_options_contract)
-                            print("Options LimitOrder to place:", limit_order)
-
-                            placed_order = self.ib.placeOrder(
-                                self.sma_amazon_call_options_contract,
-                                limit_order
-                            )
-
-                            print("The final placed order for this trade:", placed_order)
                         elif condition == "sma":
-                            self.sma_nvidia_call_options_contract = contracts[0]
+                            self.sma_nvidia_call_options_contract = valid_contracts[0]
 
-                            # get required tick data for greeks for the option contract
-                            ticker_data = self.ib.reqTickers(self.sma_nvidia_call_options_contract)
-
-                            # all greeks, then get ask and delta
-                            ask_greeks = ticker_data[0].askGreeks
-                            ask = ticker_data[0].ask
-                            delta = ask_greeks.delta
-
-                            # calculate number of contracts
-                            number_of_contracts = self.calculate_contracts(delta)
-
-                            # insert the option for later use if needed in database
-                            self.insert_option_contract(
+                            await self.place_options_order(
+                                message_data,
+                                action,
                                 condition,
-                                self.sma_nvidia_call_options_contract,
-                                number_of_contracts
+                                valid_contracts,
+                                self.sma_nvidia_call_options_contract
                             )
 
-                            # create limit order with the ask price
-                            limit_order = LimitOrder(action, number_of_contracts, ask)
-
-                            print("All ticker data:", ticker_data)
-                            print("Ask Price:", ask)
-                            print("Ask Greek delta", ask_greeks.delta)
-                            print("Contract placed:", self.sma_nvidia_call_options_contract)
-                            print("Options LimitOrder to place:", limit_order)
-
-                            placed_order = self.ib.placeOrder(
-                                self.sma_amazon_call_options_contract,
-                                limit_order
-                            )
-
-                            print("The final placed order for this trade:", placed_order)
-
-                        self.save_data(message_data, number_of_contracts, contracts[0].strike)
-                        # TODO: only need 1 return per symbol, change this
                         return
                     else:
                         rights = ['P']
@@ -400,84 +289,31 @@ class OptionsBot:
                                      for expiration in expirations
                                      for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
 
-                        contracts = self.ib.qualifyContracts(*contracts)
-                        print("Number of valid contracts:", len(contracts))
-                        print(contracts)
+                        valid_contracts = self.ib.qualifyContracts(*contracts)
+                        print("Number of valid contracts:", len(valid_contracts))
+                        print(valid_contracts)
 
                         if condition == "breakout":
-                            self.breakout_nvidia_put_options_contract = contracts[0]
+                            self.breakout_nvidia_put_options_contract = valid_contracts[0]
 
-                            # get required tick data for greeks for the option contract
-                            ticker_data = self.ib.reqTickers(self.breakout_nvidia_put_options_contract)
-
-                            # all greeks, then get ask and delta
-                            ask_greeks = ticker_data[0].askGreeks
-                            ask = ticker_data[0].ask
-                            delta = ask_greeks.delta
-
-                            # calculate number of contracts
-                            number_of_contracts = self.calculate_contracts(delta)
-
-                            # insert the option for later use if needed in database
-                            self.insert_option_contract(
+                            await self.place_options_order(
+                                message_data,
+                                action,
                                 condition,
-                                self.breakout_nvidia_put_options_contract,
-                                number_of_contracts
+                                valid_contracts,
+                                self.breakout_nvidia_put_options_contract
                             )
-
-                            # create limit order with the ask price
-                            limit_order = LimitOrder(action, number_of_contracts, ask)
-
-                            print("All ticker data:", ticker_data)
-                            print("Ask Price:", ask)
-                            print("Ask Greek delta", ask_greeks.delta)
-                            print("Contract placed:", self.breakout_nvidia_put_options_contract)
-                            print("Options LimitOrder to place:", limit_order)
-
-                            placed_order = self.ib.placeOrder(
-                                self.breakout_nvidia_put_options_contract,
-                                limit_order
-                            )
-
-                            print("The final placed order for this trade:", placed_order)
                         elif condition == "sma":
-                            self.sma_nvidia_put_options_contract = contracts[0]
+                            self.sma_nvidia_put_options_contract = valid_contracts[0]
 
-                            # get required tick data for greeks for the option contract
-                            ticker_data = self.ib.reqTickers(self.sma_nvidia_put_options_contract)
-
-                            # all greeks, then get ask and delta
-                            ask_greeks = ticker_data[0].askGreeks
-                            ask = ticker_data[0].ask
-                            delta = ask_greeks.delta
-
-                            # calculate number of contracts
-                            number_of_contracts = self.calculate_contracts(delta)
-
-                            # insert the option for later use if needed in database
-                            self.insert_option_contract(
+                            await self.place_options_order(
+                                message_data,
+                                action,
                                 condition,
-                                self.sma_nvidia_put_options_contract,
-                                number_of_contracts
+                                valid_contracts,
+                                self.sma_nvidia_put_options_contract
                             )
 
-                            # create limit order with the ask price
-                            limit_order = LimitOrder(action, number_of_contracts, ask)
-
-                            print("All ticker data:", ticker_data)
-                            print("Ask Price:", ask)
-                            print("Ask Greek delta", ask_greeks.delta)
-                            print("Contract placed:", self.sma_nvidia_put_options_contract)
-                            print("Options LimitOrder to place:", limit_order)
-
-                            placed_order = self.ib.placeOrder(
-                                self.sma_nvidia_put_options_contract,
-                                limit_order
-                            )
-
-                            print("The final placed order for this trade:", placed_order)
-
-                        self.save_data(message_data, number_of_contracts, contracts[0].strike)
                         return
                 elif symbol == constants.APPLE:
                     # initial value
@@ -506,81 +342,31 @@ class OptionsBot:
                                      for expiration in expirations
                                      for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
 
-                        contracts = self.ib.qualifyContracts(*contracts)
-                        print("Number of valid contracts:", len(contracts))
-                        print(contracts)
+                        valid_contracts = self.ib.qualifyContracts(*contracts)
+                        print("Number of valid contracts:", len(valid_contracts))
+                        print(valid_contracts)
 
                         if condition == "breakout":
-                            self.breakout_apple_call_options_contract = contracts[0]
+                            self.breakout_apple_call_options_contract = valid_contracts[0]
 
-                            # get required tick data for greeks for the option contract
-                            ticker_data = self.ib.reqTickers(self.breakout_apple_call_options_contract)
-
-                            # all greeks, then get ask and delta
-                            ask_greeks = ticker_data[0].askGreeks
-                            ask = ticker_data[0].ask
-                            delta = ask_greeks.delta
-
-                            # calculate number of contracts
-                            number_of_contracts = self.calculate_contracts(delta)
-
-                            # insert the option for later use if needed in database
-                            self.insert_option_contract(
+                            await self.place_options_order(
+                                message_data,
+                                action,
                                 condition,
-                                self.breakout_apple_call_options_contract,
-                                number_of_contracts
+                                valid_contracts,
+                                self.breakout_apple_call_options_contract
                             )
-
-                            # create limit order with the ask price
-                            limit_order = LimitOrder(action, number_of_contracts, ask)
-
-                            print("All ticker data:", ticker_data)
-                            print("Ask Price:", ask)
-                            print("Ask Greek delta", delta)
-                            print("Contract placed:", self.breakout_apple_call_options_contract)
-                            print("Options LimitOrder to place:", limit_order)
-
-                            placed_order = self.ib.placeOrder(self.breakout_apple_call_options_contract, limit_order)
-
-                            print("The final placed order for this trade:", placed_order)
                         elif condition == "sma":
-                            self.sma_apple_call_options_contract = contracts[0]
+                            self.sma_apple_call_options_contract = valid_contracts[0]
 
-                            # get required tick data for greeks for the option contract
-                            ticker_data = self.ib.reqTickers(self.sma_apple_call_options_contract)
-
-                            # all greeks, then get ask and delta
-                            ask_greeks = ticker_data[0].askGreeks
-                            ask = ticker_data[0].ask
-                            delta = ask_greeks.delta
-
-                            # calculate number of contracts
-                            number_of_contracts = self.calculate_contracts(delta)
-
-                            # insert the option for later use if needed in database
-                            self.insert_option_contract(
+                            await self.place_options_order(
+                                message_data,
+                                action,
                                 condition,
-                                self.sma_apple_call_options_contract,
-                                number_of_contracts
+                                valid_contracts,
+                                self.sma_apple_call_options_contract
                             )
 
-                            # create limit order with the ask price
-                            limit_order = LimitOrder(action, number_of_contracts, ask)
-
-                            print("All ticker data:", ticker_data)
-                            print("Ask Price:", ask)
-                            print("Ask Greek delta", delta)
-                            print("Contract placed:", self.sma_apple_call_options_contract)
-                            print("Options LimitOrder to place:", limit_order)
-
-                            placed_order = self.ib.placeOrder(
-                                self.sma_apple_call_options_contract,
-                                limit_order
-                            )
-
-                            print("The final placed order for this trade:", placed_order)
-
-                        self.save_data(message_data, number_of_contracts, contracts[0].strike)
                         return
                     else:
                         rights = ['P']
@@ -590,84 +376,31 @@ class OptionsBot:
                                      for expiration in expirations
                                      for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
 
-                        contracts = self.ib.qualifyContracts(*contracts)
-                        print("Number of valid contracts:", len(contracts))
-                        print(contracts)
+                        valid_contracts = self.ib.qualifyContracts(*contracts)
+                        print("Number of valid contracts:", len(valid_contracts))
+                        print(valid_contracts)
 
                         if condition == "breakout":
-                            self.breakout_apple_put_options_contract = contracts[0]
+                            self.breakout_apple_put_options_contract = valid_contracts[0]
 
-                            # get required tick data for greeks for the option contract
-                            ticker_data = self.ib.reqTickers(self.breakout_apple_put_options_contract)
-
-                            # all greeks, then get ask and delta
-                            ask_greeks = ticker_data[0].askGreeks
-                            ask = ticker_data[0].ask
-                            delta = ask_greeks.delta
-
-                            # calculate number of contracts
-                            number_of_contracts = self.calculate_contracts(delta)
-
-                            # insert the option for later use if needed in database
-                            self.insert_option_contract(
+                            await self.place_options_order(
+                                message_data,
+                                action,
                                 condition,
-                                self.breakout_apple_put_options_contract,
-                                number_of_contracts
+                                valid_contracts,
+                                self.breakout_apple_put_options_contract
                             )
-
-                            # create limit order with the ask price
-                            limit_order = LimitOrder(action, number_of_contracts, ask)
-
-                            print("All ticker data:", ticker_data)
-                            print("Ask Price:", ask)
-                            print("Ask Greek delta", delta)
-                            print("Contract placed:", self.breakout_apple_put_options_contract)
-                            print("Options LimitOrder to place:", limit_order)
-
-                            placed_order = self.ib.placeOrder(
-                                self.breakout_apple_put_options_contract,
-                                limit_order
-                            )
-
-                            print("The final placed order for this trade:", placed_order)
                         elif condition == "sma":
-                            self.sma_apple_put_options_contract = contracts[0]
+                            self.sma_apple_put_options_contract = valid_contracts[0]
 
-                            # get required tick data for greeks for the option contract
-                            ticker_data = self.ib.reqTickers(self.sma_apple_put_options_contract)
-
-                            # all greeks, then get ask and delta
-                            ask_greeks = ticker_data[0].askGreeks
-                            ask = ticker_data[0].ask
-                            delta = ask_greeks.delta
-
-                            # calculate number of contracts
-                            number_of_contracts = self.calculate_contracts(delta)
-
-                            # insert the option for later use if needed in database
-                            self.insert_option_contract(
+                            await self.place_options_order(
+                                message_data,
+                                action,
                                 condition,
-                                self.sma_apple_put_options_contract,
-                                number_of_contracts
+                                valid_contracts,
+                                self.sma_apple_put_options_contract
                             )
 
-                            # create limit order with the ask price
-                            limit_order = LimitOrder(action, number_of_contracts, ask)
-
-                            print("All ticker data:", ticker_data)
-                            print("Ask Price:", ask)
-                            print("Ask Greek delta", delta)
-                            print("Contract placed:", self.sma_apple_put_options_contract)
-                            print("Options LimitOrder to place:", limit_order)
-
-                            placed_order = self.ib.placeOrder(
-                                self.sma_apple_put_options_contract,
-                                limit_order
-                            )
-
-                            print("The final placed order for this trade:", placed_order)
-
-                        self.save_data(message_data, number_of_contracts, contracts[0].strike)
                         return
             elif action == constants.SELL:
                 # await self.sell_contract(action, condition, symbol, self.breakout_amazon_call_options_contract)
@@ -746,7 +479,7 @@ class OptionsBot:
             else:
                 print("Only action known is BUY and SELL, we don't do anything with this:", action)
 
-    async def place_options_order(self, action, condition, contracts, contract):
+    async def place_options_order(self, message_data, action, condition, contracts, contract):
         ticker_data = self.ib.reqTickers(contract)
 
         # all greeks, then get ask and delta
@@ -757,13 +490,6 @@ class OptionsBot:
         # calculate number of contracts
         number_of_contracts = self.calculate_contracts(delta)
 
-        # insert the option for later use if needed in database
-        self.insert_option_contract(
-            condition,
-            contract,
-            number_of_contracts
-        )
-
         # create limit order with the ask price
         limit_order = LimitOrder(action, number_of_contracts, ask)
 
@@ -772,12 +498,23 @@ class OptionsBot:
         print("Ask Greek delta", delta)
         print("Contract placed:", contract)
         print("Options LimitOrder to place:", limit_order)
+        print("The selected strike:", contract.strike)
 
         # place order
         placed_order = self.ib.placeOrder(
             contract,
             limit_order
         )
+
+        # insert the option for later use if needed in database
+        self.insert_option_contract(
+            condition,
+            contract,
+            number_of_contracts
+        )
+
+        # save the data for signals table
+        self.save_data(message_data, number_of_contracts, contract.strike)
 
         print("The final placed order for this trade:", placed_order)
 
@@ -1039,7 +776,7 @@ class OptionsBot:
         df = pd.DataFrame.from_records(rows, columns=[x[0] for x in self.cursor.description])
         print(df)
 
-    def check_connection(self):
+    async def check_connection(self):
         """
         Check IB Connection
         """
