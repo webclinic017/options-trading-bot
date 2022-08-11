@@ -763,7 +763,7 @@ class OptionsBot:
 
         rows = cursor.fetchall()
 
-        df = pd.DataFrame.from_records(rows, columns=[x[0] for x in self.cursor.description])
+        df = pd.DataFrame.from_records(rows, columns=[rows[0] for rows in cursor.description])
         print(df)
 
     async def check_connection(self):
