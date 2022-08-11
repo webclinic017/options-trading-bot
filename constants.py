@@ -28,7 +28,7 @@ APPLE = "AAPL"
 NVIDIA = "NVDA"
 AMAZON = "AMZN"
 
-NUMBER_OF_STRIKE_PRICES = 2
+NUMBER_OF_STRIKE_PRICES = 4
 
 CREATE_TABLE = """
     CREATE TABLE  IF NOT EXISTS signals (
@@ -42,6 +42,9 @@ CREATE_TABLE = """
         strikeprice     VARCHAR(10) NOT NULL,
         stoploss        DECIMAL(10, 3),
         takeProfit      DECIMAL(10, 3),
+        delta           DECIMAL(10, 3),
+        gamma           DECIMAL(10, 3),
+        ask             DECIMAL(10, 3),
         result          CHAR(1) NOT NULL,
         timestamp       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id)
@@ -92,6 +95,7 @@ END_OF_DAY_RESULTS = """
         FROM signals 
         WHERE timestamp > DATE(NOW()) - INTERVAL 1 DAY GROUP BY result
 """
+SELECT_DASHBOARD_DATA = """SELECT delta, gamma, ask, result FROM signals"""
 DELETE_ALL = """DELETE FROM signals"""
 SELECT_ALL = """SELECT * FROM signals"""
 INSERT_DATA = """
@@ -105,10 +109,13 @@ INSERT_DATA = """
             entryprice, 
             strikeprice, 
             stoploss, 
-            takeProfit, 
+            takeProfit,
+            delta,
+            gamma,
+            ask, 
             result
         ) 
-    VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+    VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """
 
 TEST_INSERT = """
@@ -122,9 +129,13 @@ TEST_INSERT = """
             entryprice, 
             strikeprice, 
             stoploss, 
-            takeProfit, 
-            result) 
-    VALUES (%s, %s, 'buy', %s, 1, 100.0, 101.0, 102.0, 101.0, 'P')
+            takeProfit,
+            delta,
+            gamma,
+            ask, 
+            result
+        ) 
+    VALUES (%s, %s, 'buy', %s, 1, 100.0, 101.0, 102.0, 101.0, 1.111, 0.543, 1.25, 'P')
 """
 
 UPDATE_DATA = """
