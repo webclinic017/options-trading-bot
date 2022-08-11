@@ -1,8 +1,7 @@
 import redis
 import mysql.connector
-from flask import Flask, request, json, render_template
-
 import constants
+from flask import Flask, request, json, render_template
 
 app = Flask(__name__)
 
@@ -37,7 +36,28 @@ def dashboard():
     except mysql.connector.Error as err:
         print("Failed retrieving from database: {}".format(err))
 
-    return render_template("dashboard.html", signals=signals)
+    total_trades = len(signals)
+    list(signals)
+    print(signals)
+
+    average_call_delta = sum((i[10] for i in signals if i[4] == constants.CALL)) / len(signals)
+    average_call_gamma = sum((i[11] for i in signals if i[4] == constants.CALL)) / len(signals)
+    average_call_ask   = sum((i[12] for i in signals if i[4] == constants.CALL)) / len(signals)
+    average_put_delta = sum((i[10] for i in signals if i[4] == constants.PUT)) / len(signals)
+    average_put_gamma = sum((i[11] for i in signals if i[4] == constants.PUT)) / len(signals)
+    average_put_ask   = sum((i[12] for i in signals if i[4] == constants.PUT)) / len(signals)
+
+    return render_template(
+        "dashboard.html",
+        signals=signals,
+        trades=total_trades,
+        average_call_delta=average_call_delta,
+        average_call_gamma=average_call_gamma,
+        average_call_ask=average_call_ask,
+        average_put_delta=average_put_delta,
+        average_put_gamma=average_put_gamma,
+        average_put_ask=average_put_ask
+    )
 
 
 @app.route('/tradingview', methods=['POST'])
