@@ -141,9 +141,6 @@ class OptionsBot:
 
             if action == constants.BUY:
                 if symbol == constants.AMAZON:
-                    # start initial value
-                    number_of_contracts = 0
-
                     # the first options chain in list of 16
                     options_chain = next(c for c in self.amazon_option_chains if
                                          c.exchange == constants.SMART and
@@ -229,9 +226,6 @@ class OptionsBot:
 
                         return
                 elif symbol == constants.NVIDIA:
-                    # initial value
-                    number_of_contracts = 0
-
                     # the first options chain in list of 16
                     options_chain = next(c for c in self.nvidia_option_chains if
                                          c.exchange == 'SMART' and c.tradingClass == constants.NVIDIA)
@@ -316,9 +310,6 @@ class OptionsBot:
 
                         return
                 elif symbol == constants.APPLE:
-                    # initial value
-                    number_of_contracts = 0
-
                     # the first options chain in list of 16
                     options_chain = next(c for c in self.apple_option_chains if
                                          c.exchange == 'SMART' and c.tradingClass == constants.APPLE)
@@ -524,7 +515,7 @@ class OptionsBot:
         print(contract)
 
     async def sell_contract(self, action, condition, symbol, contract):
-        foundInDatabase = False
+        found_in_database = False
         contracts_from_buy_trade = 0
 
         if contract is None:
@@ -532,7 +523,7 @@ class OptionsBot:
             retrieved_contract, number_of_contracts = self.check_for_options_contract(symbol, condition)
 
             if retrieved_contract:
-                foundInDatabase = True
+                found_in_database = True
                 contracts_from_buy_trade = number_of_contracts
                 contract = retrieved_contract
 
@@ -541,14 +532,13 @@ class OptionsBot:
 
             print("Contract to sell:", contract)
 
-            if not foundInDatabase:
+            if not found_in_database:
                 contracts_from_buy_trade = self.get_trade_contracts(symbol, condition)
 
             sell_limit_order = LimitOrder(action, contracts_from_buy_trade, ticker_data[0].ask)
-            # sell_trade = self.ib.placeOrder(contract,
-            #                                 sell_limit_order)
-            # print("Sold! Trade:", sell_trade)
-            print("sold")
+            sell_trade = self.ib.placeOrder(contract,
+                                            sell_limit_order)
+            print("Sold! Trade:", sell_trade)
 
             self.delete_options_contract(symbol, condition)
         else:
