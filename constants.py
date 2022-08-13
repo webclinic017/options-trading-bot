@@ -11,8 +11,10 @@ config = {
     'database': 'trade'
 }
 
+TWILIO_ACCOUNT_SID = 'AC2981f034e5344f4f3a2bab5708568aad'
+TWILIO_AUTH_TOKEN = '850cf9aa10130bcda8c902be9165bca1'
+
 BALANCE = 1000
-RISK = .01
 
 BUY = "BUY"
 SELL = "SELL"
@@ -20,7 +22,6 @@ CALL = "CALL"
 PUT = "PUT"
 SMART = "SMART"
 USD = "USD"
-EXCHANGE = "NASDAQOM"
 
 NETFLIX = "NFLX"
 FORD = "F"
@@ -32,24 +33,85 @@ NUMBER_OF_STRIKE_PRICES = 4
 
 CREATE_TABLE = """
     CREATE TABLE  IF NOT EXISTS signals (
-        id              INT(11) NOT NULL AUTO_INCREMENT,
-        symbol          VARCHAR(10) NOT NULL,
-        trade_condition VARCHAR(20) NOT NULL,
-        trade_action    VARCHAR(4) NOT NULL, 
-        trade_right     VARCHAR(4) NOT NULL,
-        contracts       INT NOT NULL,
-        entryprice      DECIMAL(10, 3),
-        strikeprice     VARCHAR(10) NOT NULL,
-        stoploss        DECIMAL(10, 3),
-        takeProfit      DECIMAL(10, 3),
-        delta           DECIMAL(10, 3),
-        gamma           DECIMAL(10, 3),
-        ask             DECIMAL(10, 3),
-        result          CHAR(1) NOT NULL,
-        timestamp       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id                  INT(11) NOT NULL AUTO_INCREMENT,
+        symbol              VARCHAR(10) NOT NULL,
+        trade_condition     VARCHAR(20) NOT NULL,
+        trade_action        VARCHAR(4) NOT NULL, 
+        trade_right         VARCHAR(4) NOT NULL,
+        contracts           INT NOT NULL,
+        entryprice          DECIMAL(10, 3),
+        strikeprice         VARCHAR(10) NOT NULL,
+        stoploss            DECIMAL(10, 3),
+        take_profit         DECIMAL(10, 3),
+        buy_delta           DECIMAL(10, 3),
+        buy_gamma           DECIMAL(10, 3),
+        buy_ask             DECIMAL(10, 3),
+        buy_implied_vol     DECIMAL(10, 3),
+        sell_delta          DECIMAL(10, 3) DEFAULT 0.00,
+        sell_gamma          DECIMAL(10, 3) DEFAULT 0.00,
+        sell_ask            DECIMAL(10, 3) DEFAULT 0.00,
+        sell_implied_vol    DECIMAL(10, 3) DEFAULT 0.00,    
+        result              CHAR(1) NOT NULL,
+        buy_timestamp       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        sell_timestamp      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id)
     )
 """
+
+EXPORT_ALL_TRADES_CSV = """
+    SELECT 
+        'id',
+        'symbol',
+        'trade_condition',
+        'trade_action',
+        'trade_right',
+        'contracts',
+        'entryprice',
+        'strikeprice',
+        'stoploss',
+        'take_profit',
+        'buy_delta',
+        'buy_gamma',
+        'buy_ask',
+        'buy_implied_vol',
+        'sell_delta',
+        'sell_gamma',
+        'sell_ask',
+        'sell_implied_vol',
+        'result',
+        'buy_timestamp',
+        'sell_timestamp'
+    UNION ALL
+    SELECT * FROM signals
+"""
+
+EXPORT_DAILY_CSV = """
+    SELECT 
+        'id',
+        'symbol',
+        'trade_condition',
+        'trade_action',
+        'trade_right',
+        'contracts',
+        'entryprice',
+        'strikeprice',
+        'stoploss',
+        'take_profit',
+        'buy_delta',
+        'buy_gamma',
+        'buy_ask',
+        'buy_implied_vol',
+        'sell_delta',
+        'sell_gamma',
+        'sell_ask',
+        'sell_implied_vol',
+        'result',
+        'buy_timestamp',
+        'sell_timestamp'
+    UNION ALL
+    SELECT * FROM signals WHERE buy_timestamp > DATE(NOW()) - INTERVAL 1 DAY
+"""
+
 
 CREATE_OPTIONS_TABLE = """
     CREATE TABLE IF NOT EXISTS options (
@@ -93,9 +155,8 @@ INSERT_OPTION = """
 END_OF_DAY_RESULTS = """
     SELECT result, count(*) 
         FROM signals 
-        WHERE timestamp > DATE(NOW()) - INTERVAL 1 DAY GROUP BY result
+        WHERE buy_timestamp > DATE(NOW()) - INTERVAL 1 DAY GROUP BY result
 """
-SELECT_DASHBOARD_DATA = """SELECT delta, gamma, ask, result FROM signals"""
 DELETE_ALL = """DELETE FROM signals"""
 SELECT_ALL = """SELECT * FROM signals"""
 INSERT_DATA = """
@@ -109,14 +170,19 @@ INSERT_DATA = """
             entryprice, 
             strikeprice, 
             stoploss, 
-            takeProfit,
-            delta,
-            gamma,
-            ask, 
+            take_profit,
+            buy_delta,
+            buy_gamma,
+            buy_ask,
+            buy_implied_vol,
             result
         ) 
-    VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+    VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """
+
+
+
+
 
 TEST_INSERT = """
     INSERT INTO signals 
@@ -129,18 +195,25 @@ TEST_INSERT = """
             entryprice, 
             strikeprice, 
             stoploss, 
-            takeProfit,
-            delta,
-            gamma,
-            ask, 
+            take_profit,
+            buy_delta,
+            buy_gamma,
+            buy_ask,
+            buy_implied_vol,
             result
         ) 
-    VALUES (%s, %s, 'buy', %s, 1, 100.0, 101.0, 102.0, 101.0, 1.111, 0.543, 1.25, 'P')
+    VALUES (%s, %s, 'buy', %s, 2, 100.0, 101.0, 99.0, 101.0, 1.111, 0.543, 1.25, 0.0542345345, 'P')
 """
 
 UPDATE_DATA = """
     UPDATE signals 
-    SET result = %s 
+    SET 
+        result = %s, 
+        sell_delta = %s, 
+        sell_gamma = %s, 
+        sell_ask = %s, 
+        sell_implied_vol = %s, 
+        sell_timestamp = CURRENT_TIMESTAMP
     WHERE 
         trade_condition = %s AND 
         trade_action = 'BUY' AND 
