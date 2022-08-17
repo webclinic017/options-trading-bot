@@ -14,7 +14,8 @@ config = {
 TWILIO_ACCOUNT_SID = 'AC2981f034e5344f4f3a2bab5708568aad'
 TWILIO_AUTH_TOKEN = '850cf9aa10130bcda8c902be9165bca1'
 
-BALANCE = 1000
+BALANCE = 2500
+RISK = .02
 
 BUY = "BUY"
 SELL = "SELL"
@@ -29,7 +30,17 @@ APPLE = "AAPL"
 NVIDIA = "NVDA"
 AMAZON = "AMZN"
 
-NUMBER_OF_STRIKE_PRICES = 4
+PUT_UPPER_DELTA_BOUNDARY = -0.50
+PUT_LOWER_DELTA_BOUNDARY = -0.30
+CALL_UPPER_DELTA_BOUNDARY = 0.50
+CALL_LOWER_DELTA_BOUNDARY = 0.30
+SET_DELTA_COMPARISON = 0.45
+NUMBER_OF_STRIKE_PRICES = 5
+STRIKE_PRICE_CHECK_IN_THE_MONEY = 3
+
+NUMBER_OF_CONTRACTS = 4
+# luis - NUMBER_OF_CONTRACTS = 4
+# tyler - NUMBER_OF_CONTRACTS = 1
 
 CREATE_TABLE = """
     CREATE TABLE  IF NOT EXISTS signals (
@@ -112,6 +123,72 @@ EXPORT_DAILY_CSV = """
     SELECT * FROM signals WHERE buy_timestamp > DATE(NOW()) - INTERVAL 1 DAY
 """
 
+END_OF_DAY_RESULTS = """
+    SELECT result, count(*) 
+        FROM signals 
+        WHERE buy_timestamp > DATE(NOW()) - INTERVAL 1 DAY GROUP BY result
+"""
+DELETE_ALL = """DELETE FROM signals"""
+SELECT_ALL = """SELECT * FROM signals"""
+INSERT_DATA = """
+    INSERT INTO signals
+        (
+            symbol, 
+            trade_condition, 
+            trade_action, 
+            trade_right, 
+            contracts, 
+            entryprice, 
+            strikeprice, 
+            stoploss, 
+            take_profit,
+            buy_delta,
+            buy_gamma,
+            buy_ask,
+            buy_implied_vol,
+            result
+        ) 
+    VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+"""
+
+TEST_INSERT = """
+    INSERT INTO signals 
+        (
+            symbol, 
+            trade_condition, 
+            trade_action, 
+            trade_right, 
+            contracts, 
+            entryprice, 
+            strikeprice, 
+            stoploss, 
+            take_profit,
+            buy_delta,
+            buy_gamma,
+            buy_ask,
+            buy_implied_vol,
+            result
+        ) 
+    VALUES (%s, %s, 'buy', %s, 2, 100.0, 101.0, 99.0, 101.0, 1.111, 0.543, 1.25, 0.0542345345, 'P')
+"""
+
+UPDATE_DATA = """
+    UPDATE signals 
+    SET 
+        result = %s, 
+        sell_delta = %s, 
+        sell_gamma = %s, 
+        sell_ask = %s, 
+        sell_implied_vol = %s, 
+        sell_timestamp = CURRENT_TIMESTAMP
+    WHERE 
+        trade_condition = %s AND 
+        trade_action = 'BUY' AND 
+        result = 'P' AND 
+        symbol = %s
+"""
+
+GET_MATCHING_TRADE = """select contracts from signals where symbol = %s and trade_condition = %s and result = 'P'"""
 
 CREATE_OPTIONS_TABLE = """
     CREATE TABLE IF NOT EXISTS options (
@@ -151,76 +228,3 @@ INSERT_OPTION = """
         )
     VALUES(%s, %s, %s, %s, %s, %s, %s, %s);
 """
-
-END_OF_DAY_RESULTS = """
-    SELECT result, count(*) 
-        FROM signals 
-        WHERE buy_timestamp > DATE(NOW()) - INTERVAL 1 DAY GROUP BY result
-"""
-DELETE_ALL = """DELETE FROM signals"""
-SELECT_ALL = """SELECT * FROM signals"""
-INSERT_DATA = """
-    INSERT INTO signals
-        (
-            symbol, 
-            trade_condition, 
-            trade_action, 
-            trade_right, 
-            contracts, 
-            entryprice, 
-            strikeprice, 
-            stoploss, 
-            take_profit,
-            buy_delta,
-            buy_gamma,
-            buy_ask,
-            buy_implied_vol,
-            result
-        ) 
-    VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-"""
-
-
-
-
-
-TEST_INSERT = """
-    INSERT INTO signals 
-        (
-            symbol, 
-            trade_condition, 
-            trade_action, 
-            trade_right, 
-            contracts, 
-            entryprice, 
-            strikeprice, 
-            stoploss, 
-            take_profit,
-            buy_delta,
-            buy_gamma,
-            buy_ask,
-            buy_implied_vol,
-            result
-        ) 
-    VALUES (%s, %s, 'buy', %s, 2, 100.0, 101.0, 99.0, 101.0, 1.111, 0.543, 1.25, 0.0542345345, 'P')
-"""
-
-UPDATE_DATA = """
-    UPDATE signals 
-    SET 
-        result = %s, 
-        sell_delta = %s, 
-        sell_gamma = %s, 
-        sell_ask = %s, 
-        sell_implied_vol = %s, 
-        sell_timestamp = CURRENT_TIMESTAMP
-    WHERE 
-        trade_condition = %s AND 
-        trade_action = 'BUY' AND 
-        result = 'P' AND 
-        symbol = %s
-"""
-
-MATCHING_TRADE_STOPLOSS = """select strikeprice from signals where stoploss = %s and trade_condition = %s and right = %s"""
-MATCHING_TRADE_PROFIT = """select strikeprice from signals where takeprofit = %s and trade_condition = %s and right = %s"""
-GET_MATCHING_TRADE = """select contracts from signals where symbol = %s and trade_condition = %s and result = 'P'"""
