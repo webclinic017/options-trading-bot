@@ -47,13 +47,22 @@ def dashboard():
     total_pending = sum((1 for i in signals if i[18] == 'P'))
     list(signals)
 
-    average_call_delta = sum((i[10] for i in signals if i[4] == constants.CALL)) / len(signals)
-    average_call_gamma = sum((i[11] for i in signals if i[4] == constants.CALL)) / len(signals)
-    average_call_ask   = sum((i[12] for i in signals if i[4] == constants.CALL)) / len(signals)
-    average_put_delta = sum((i[10] for i in signals if i[4] == constants.PUT)) / len(signals)
-    average_put_gamma = sum((i[11] for i in signals if i[4] == constants.PUT)) / len(signals)
-    average_put_ask   = sum((i[12] for i in signals if i[4] == constants.PUT)) / len(signals)
-    pie_chart_array   = [total_wins, total_losses, total_pending]
+    if signals:
+        average_call_delta = sum((i[10] for i in signals if i[4] == constants.CALL)) / len(signals)
+        average_call_gamma = sum((i[11] for i in signals if i[4] == constants.CALL)) / len(signals)
+        average_call_ask   = sum((i[12] for i in signals if i[4] == constants.CALL)) / len(signals)
+        average_put_delta = sum((i[10] for i in signals if i[4] == constants.PUT)) / len(signals)
+        average_put_gamma = sum((i[11] for i in signals if i[4] == constants.PUT)) / len(signals)
+        average_put_ask   = sum((i[12] for i in signals if i[4] == constants.PUT)) / len(signals)
+        pie_chart_array   = [total_wins, total_losses, total_pending]
+    else:
+        average_call_delta = 0
+        average_call_gamma = 0
+        average_call_ask = 0
+        average_put_delta = 0
+        average_put_gamma = 0
+        average_put_ask = 0
+        pie_chart_array = [total_wins, total_losses, total_pending]
 
     return render_template(
         "dashboard.html",
