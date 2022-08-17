@@ -1,7 +1,7 @@
 import datetime
-import math
 import time
 import pandas as pd
+import numpy
 import asyncio
 import nest_asyncio
 import redis
@@ -27,6 +27,28 @@ def get_correct_options_expiration(expirations):
           .format(expiration, today_date, expiration))
 
     return expiration
+
+
+def create_options_contract(symbol, expiration, strike, right):
+    """
+    Create an Option Contract with following parameters:
+
+    Parameters:
+        symbol: Symbol name.
+        expiration: The option's last trading day or contract month.
+            YYYYMMDD format
+        strike: The option's strike price.
+        right: Put or call option.
+            Valid values are 'P', 'PUT', 'C' or 'CALL'.
+    """
+    return Option(
+        symbol,
+        expiration,
+        strike,
+        right,
+        constants.SMART
+    )
+
 
 class OptionsBot:
     def __init__(self):
@@ -114,42 +136,15 @@ class OptionsBot:
 
         print("Running Live!")
 
-        self.account_sid = 'AC2981f034e5344f4f3a2bab5708568aad'
-        self.auth_token = '850cf9aa10130bcda8c902be9165bca1'
-        self.client = Client(self.account_sid, self.auth_token)
-
-        # message = client.messages \
-        #     .create(
-        #     body='This is the ship that made the Kessel Run in fourteen parsecs?',
-        #     from_='+12532143922',
-        #     to='+12407273383'
-        # )
-        #
-        # print(message)
-
-        # right= 'CALL'
-        # action='BUY'
-        # symbol='AMZN'
-        # price=101
-        #
-        # message_body = "TRADE!  This is a {} option to {} for {} @ {}".format(right, action, symbol, price)
-        #
-        # message = self.client.messages \
-        #     .create(
-        #     body=message_body,
-        #     from_='+12532143922',
-        #     to='+12407273383'
-        # )
-
         self.sched = AsyncIOScheduler(daemon=True)
         self.sched.add_job(self.update_options_chains, 'cron', day_of_week='mon-fri', hour='8')
         self.sched.add_job(self.check_connection, 'cron', day_of_week='mon-fri', hour='9')
+        # self.sched.add_job(self.check_account_balance, 'cron', day_of_week='mon-fri', hour='10')
         self.sched.add_job(self.end_of_day_results, 'cron', day_of_week='mon-fri', hour='16')
         self.sched.start()
 
         asyncio.run(self.run_periodically(1, self.check_messages))
         self.ib.run()
-
 
     async def check_messages(self):
         """
@@ -169,8 +164,6 @@ class OptionsBot:
             symbol = message_data['symbol']
             condition = message_data['order']['condition']
             price = message_data['order']['price']
-            stoploss = message_data['order']['stoploss']
-            take_profit = message_data['order']['takeProfit']
             right = message_data['order']['right']
             action = message_data['order']['action']
             result = message_data['order']['result']
@@ -194,98 +187,76 @@ class OptionsBot:
 
                     correct_expiration = get_correct_options_expiration(expirations)
 
+                    call_above_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['C']
+                        for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
+                    call_below_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['C']
+                        for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
+                    put_above_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['P']
+                        for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
+                    put_below_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['P']
+                        for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
+
+                    call_contracts = numpy.concatenate((call_below_entry_price, call_above_entry_price))
+                    put_contracts = numpy.concatenate((put_below_entry_price, put_above_entry_price))
+
                     if right == constants.CALL:
-                        rights = ['C']
+                        valid_contracts = self.ib.qualifyContracts(*call_contracts)
 
-                        contracts = [Option(symbol, correct_expiration, strike, right, 'SMART', tradingClass=symbol)
-                                     for right in rights
-                                     for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
-
-                        valid_contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(valid_contracts))
                         print("All valid contracts:", valid_contracts)
 
                         if condition == "breakout":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.breakout_amazon_call_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.breakout_amazon_call_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                take_profit,
                                 self.breakout_amazon_call_options_contract
                             )
                         elif condition == "sma":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.sma_amazon_call_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.sma_amazon_call_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                valid_contracts,
                                 self.sma_amazon_call_options_contract
                             )
                     else:
-                        rights = ['P']
+                        valid_contracts = self.ib.qualifyContracts(*put_contracts)
 
-                        contracts = [Option(symbol, correct_expiration, strike, right, 'SMART', tradingClass=symbol)
-                                     for right in rights
-                                     for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
-
-                        valid_contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(valid_contracts))
                         print(valid_contracts)
 
                         if condition == "breakout":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.breakout_amazon_put_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.breakout_amazon_put_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                valid_contracts,
                                 self.breakout_amazon_put_options_contract
                             )
                         elif condition == "sma":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.sma_amazon_put_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.sma_amazon_put_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                valid_contracts,
                                 self.sma_amazon_put_options_contract
                             )
                 elif symbol == constants.NVIDIA:
@@ -294,111 +265,89 @@ class OptionsBot:
 
                     # get all the call strikes and put strikes
                     call_strikes = [strike for strike in options_chain.strikes
-                                    if strike > price]
+                                    if price < strike < price - constants.STRIKE_PRICE_CHECK_IN_THE_MONEY]
                     put_strikes = [strike for strike in options_chain.strikes
-                                   if strike < price]
+                                   if price > strike > price + constants.STRIKE_PRICE_CHECK_IN_THE_MONEY]
                     expirations = sorted(exp for exp in options_chain.expirations)[:2]
 
                     correct_expiration = get_correct_options_expiration(expirations)
 
+                    call_above_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['C']
+                        for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
+                    call_below_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['C']
+                        for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
+                    put_above_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['P']
+                        for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
+                    put_below_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['P']
+                        for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
+
+                    call_contracts = numpy.concatenate((call_below_entry_price, call_above_entry_price))
+                    put_contracts = numpy.concatenate((put_below_entry_price, put_above_entry_price))
+
                     if right == constants.CALL:
-                        rights = ['C']
+                        valid_contracts = self.ib.qualifyContracts(*call_contracts)
 
-                        contracts = [Option(symbol, correct_expiration, strike, right, 'SMART', tradingClass=symbol)
-                                     for right in rights
-                                     for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
-
-                        valid_contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(valid_contracts))
                         print(valid_contracts)
 
                         if condition == "breakout":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.breakout_nvidia_call_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.breakout_nvidia_call_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                valid_contracts,
                                 self.breakout_nvidia_call_options_contract
                             )
                         elif condition == "sma":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.sma_nvidia_call_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.sma_nvidia_call_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                valid_contracts,
                                 self.sma_nvidia_call_options_contract
                             )
                     else:
-                        rights = ['P']
+                        valid_contracts = self.ib.qualifyContracts(*put_contracts)
 
-                        contracts = [Option(symbol, correct_expiration, strike, right, 'SMART', tradingClass=symbol)
-                                     for right in rights
-                                     for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
-
-                        valid_contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(valid_contracts))
                         print(valid_contracts)
 
                         if condition == "breakout":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.breakout_nvidia_put_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.breakout_nvidia_put_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                valid_contracts,
                                 self.breakout_nvidia_put_options_contract
                             )
                         elif condition == "sma":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.sma_nvidia_put_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.sma_nvidia_put_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                valid_contracts,
                                 self.sma_nvidia_put_options_contract
                             )
                 elif symbol == constants.APPLE:
                     # the first options chain in list of 16
                     options_chain = next(c for c in self.apple_option_chains if
-                                         c.exchange == 'SMART' and c.tradingClass == constants.APPLE)
+                                         c.exchange == constants.SMART and c.tradingClass == constants.APPLE)
 
                     # get all the call strikes and put strikes
                     call_strikes = [strike for strike in options_chain.strikes
@@ -409,106 +358,78 @@ class OptionsBot:
 
                     correct_expiration = get_correct_options_expiration(expirations)
 
+                    call_above_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['C']
+                        for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
+                    call_below_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['C']
+                        for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
+                    put_above_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['P']
+                        for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
+                    put_below_entry_price = [
+                        Option(symbol, correct_expiration, strike, right, constants.SMART, tradingClass=symbol)
+                        for right in ['P']
+                        for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
+
+                    call_contracts = numpy.concatenate((call_below_entry_price, call_above_entry_price))
+                    put_contracts = numpy.concatenate((put_below_entry_price, put_above_entry_price))
+
                     if right == constants.CALL:
-                        rights = ['C']
+                        valid_contracts = self.ib.qualifyContracts(*call_contracts)
 
-                        contracts = [Option(symbol, correct_expiration, strike, right, 'SMART', tradingClass=symbol)
-                                     for right in rights
-                                     for strike in call_strikes[:constants.NUMBER_OF_STRIKE_PRICES]]
-
-                        valid_contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(valid_contracts))
                         print(valid_contracts)
 
                         if condition == "breakout":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.breakout_apple_call_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.breakout_apple_call_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                valid_contracts,
                                 self.breakout_apple_call_options_contract
                             )
                         elif condition == "sma":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.sma_apple_call_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.sma_apple_call_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                valid_contracts,
                                 self.sma_apple_call_options_contract
                             )
                     else:
-                        rights = ['P']
+                        valid_contracts = self.ib.qualifyContracts(*put_contracts)
 
-                        contracts = [Option(symbol, correct_expiration, strike, right, 'SMART', tradingClass=symbol)
-                                     for right in rights
-                                     for strike in put_strikes[-constants.NUMBER_OF_STRIKE_PRICES:]]
-
-                        valid_contracts = self.ib.qualifyContracts(*contracts)
                         print("Number of valid contracts:", len(valid_contracts))
                         print(valid_contracts)
 
                         if condition == "breakout":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.breakout_apple_put_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.breakout_apple_put_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                valid_contracts,
                                 self.breakout_apple_put_options_contract
                             )
                         elif condition == "sma":
-                            selected_strike_price = await self.get_strike_price(
-                                call_strikes,
-                                take_profit,
-                                price,
-                                valid_contracts
-                            )
-
-                            self.sma_apple_put_options_contract = next(
-                                (x for x in valid_contracts if x.strike == selected_strike_price))
+                            self.sma_apple_put_options_contract = await self.get_correct_contract_with_delta(
+                                valid_contracts)
 
                             await self.place_options_order(
                                 message_data,
                                 action,
                                 condition,
-                                valid_contracts,
                                 self.sma_apple_put_options_contract
                             )
-
-                print("Checking open orders and trades to see how it works! Just Bought.....")
-                open_orders = self.ib.openOrders()
-                open_trades = self.ib.openTrades()
-                print("Check open order:", open_orders)
-                print("Open trades:", open_trades)
             elif action == constants.SELL:
                 print("Checking open orders and trades to see how it works! Selling.....")
                 open_orders = self.ib.openOrders()
@@ -576,7 +497,7 @@ class OptionsBot:
             else:
                 print("Only action known is BUY and SELL, we don't do anything with this:", action)
 
-    async def place_options_order(self, message_data, action, condition, profit_target, contract):
+    async def place_options_order(self, message_data, action, condition, contract):
         ticker_data = self.ib.reqTickers(contract)
 
         # all greeks, then get ask and delta
@@ -587,7 +508,7 @@ class OptionsBot:
         implied_volatility = ask_greeks.impliedVol
 
         # calculate number of contracts
-        number_of_contracts = self.calculate_contracts(delta)
+        number_of_contracts = constants.NUMBER_OF_CONTRACTS
 
         # create limit order with the ask price
         limit_order = LimitOrder(action, number_of_contracts, ask)
@@ -620,9 +541,6 @@ class OptionsBot:
         print("The final placed order for this trade:", placed_order)
 
         return placed_order
-
-    def get_contract_and_reset(self, contract):
-        print(contract)
 
     async def sell_contract(self, action, condition, symbol, contract, result):
         found_in_database = False
@@ -661,125 +579,74 @@ class OptionsBot:
                                             sell_limit_order)
             print("Sold! Trade:", sell_trade)
 
+            # TODO: combine into 1 transaction
             self.delete_options_contract(symbol, condition)
             self.update_data(result, condition, symbol, ask, delta, gamma, implied_vol)
         else:
             print("Couldn't find in database and didn't have in current session to sell.")
 
-    async def ticker_info(self, contract):
-        # get required tick data for greeks for the option contract
-        ticker_data = self.ib.reqTickers(contract)
+    async def ticker_info(self, contracts):
+        is_put = False
 
-        print("Ticker Data to be used in calculating number of contracts.")
-        print("Contract:", contract)
+        closest_delta = 0.0
+        deltas = []
+        invalid_range_deltas = []
+        valid_range_deltas = []
 
-        # all greeks, then get ask and delta
-        ask_greeks = ticker_data[0].askGreeks
-        delta = ask_greeks.delta
-        positive_delta = delta
-
-        if delta < 0:
-            positive_delta = delta * -1
-            print("This was a PUT order, so we are calculating delta given:", delta, " with positive delta:",
-                  positive_delta)
-
-        gamma = ask_greeks.gamma
-
-        print("Original Delta:", delta)
-        print("Positive Delta:", positive_delta)
-        print("Gamma:", gamma)
-
-        # calculate number of contracts
-        number_of_contracts = self.calculate_contracts(positive_delta)
-
-        return number_of_contracts, positive_delta, gamma
-
-    async def get_strike_price(self, strikes, profit_target, entry_price, contracts):
-        # get the delta and gamma for each of those
-        # calculate the number of contracts and profit for them
-        # choose which has the highest profit and return that back to use as the contract to buy!
-        # formula to get profit from delta, gamma - ((delta + (gamma * math.floor(profit_target))) * profit_target) * contracts
-
-        # Error 200, reqId 83: No security definition has been found for the request, contract: Option(symbol='AMZN', lastTradeDateOrContractMonth='20220805', strike=141.5, right='CALL', exchange='SMART')
-
-        number_of_contracts_array = []
-        profit_array = []
-        valid_strikes = []
-
-        print("Starting Calculation to get correct Strike Price...")
-        print("Number of valid contracts to calculate:", len(contracts))
-
+        # make dictionary and get closest delta and choose contract with corresponding strike price
+        # can get a list of all tickers for all contracts at once
         for i in range(len(contracts)):
-            number_of_contracts, delta, gamma = await self.ticker_info(contracts[i])
-            number_of_contracts_array.append(number_of_contracts)
-            valid_strikes.append(contracts[i].strike)
-            profit_array.append(self.calculate_estimated_profit(delta, gamma, profit_target, entry_price, number_of_contracts))
+            ticker_data = self.ib.reqTickers(contracts[i])
+            delta = ticker_data[0].askGreeks.delta
+            deltas.append(delta)
 
-        print(valid_strikes)
+            if delta < 0:
+                is_put = True
 
-        new_dict = {valid_strikes[i]: profit_array[i] for i in range(len(contracts))}
-        print("Created Dictionary:", new_dict)
+                if not constants.PUT_UPPER_DELTA_BOUNDARY <= delta <= constants.PUT_LOWER_DELTA_BOUNDARY:
+                    print("Delta wasn't in range: -0.50 <= delta <= -0.30:", delta)
+                    invalid_range_deltas.append(delta)
+                else:
+                    valid_range_deltas.append(delta)
+            else:
+                if not constants.CALL_UPPER_DELTA_BOUNDARY >= delta >= constants.CALL_LOWER_DELTA_BOUNDARY:
+                    print("Delta wasn't in range: 0.50 >= delta >= 0.30:", delta)
+                    invalid_range_deltas.append(delta)
+                else:
+                    valid_range_deltas.append(delta)
 
-        print(new_dict)
+        if len(deltas) > 0:
+            if not is_put:
+                closest_delta = deltas[
+                    min(range(len(deltas)), key=lambda i: abs(deltas[i] - constants.SET_DELTA_COMPARISON))]
+            else:
+                closest_delta = deltas[
+                    min(range(len(deltas)), key=lambda i: abs(deltas[i] + constants.SET_DELTA_COMPARISON))]
 
-        max_profit = max(new_dict.values())
-        print(max_profit)
-
-        max_key = max(new_dict, key=new_dict.get)
-        print("Max KEY:", max_key)
-
-        return max_key
-
-    def calculate_estimated_profit(self, delta, gamma, profit_target, entry_price, number_of_contracts):
-        print("Calculating Estimated Profit...")
-
-        print("Calculating with variables:")
-        print("Delta:", delta)
-        print("Gamma:", gamma)
-        print("# of Contracts:", number_of_contracts)
-        print("Profit Target:", profit_target)
-        print("The formula: ((delta + (gamma * math.floor(profit))) * profit) * number_of_contracts * 100")
-
-        profit = profit_target - entry_price
-
-        profit = abs(profit)
-
-        print("Entry Price:", entry_price)
-        print("Profit:", profit)
-
-        estimated_profit = ((delta + (gamma * math.floor(profit))) * profit) * number_of_contracts * 100
-
-        print("Estimated Profit =", estimated_profit)
-
-        return estimated_profit
-
-    def calculate_contracts(self, delta):
-        print("Calculating the number of Contracts")
-
-        if constants.BALANCE <= 1000:
-            risk_amount = constants.BALANCE * .05
-        elif 3000 >= constants.BALANCE > 1000:
-            risk_amount = constants.BALANCE * .02
+            print("The closest delta found is", closest_delta, "from all deltas:", deltas)
+            print("Total deltas to choose from:", deltas)
+            print("All deltas in range:", valid_range_deltas)
+            print("All deltas out of range:", invalid_range_deltas)
         else:
-            risk_amount = constants.BALANCE * .01
+            print("No deltas were in range.")
 
-        number_of_contracts = risk_amount / ((delta * 100) / 2)
-        rounded_contracts = math.floor(number_of_contracts)
+        if len(deltas) > 0:
+            for i in range(len(deltas)):
+                if closest_delta == deltas[i]:
+                    print("Choosing contract:", contracts[i])
+                    return contracts[i]
+        else:
+            print("Couldn't find delta for contract so defaulting to contract closest to [In The Money]:", contracts[len(contracts) - 1])
+            return contracts[len(contracts) - 1]
 
-        print("The number of contracts for delta of [", delta, "] =", number_of_contracts)
-        print("Rounded down the number of contracts is", rounded_contracts)
+    async def get_correct_contract_with_delta(self, contracts):
+        print("Calculating correct contract with delta closest to 0.45...")
 
-        # on test day, just return 1 for the number contracts
-        return rounded_contracts
+        chosen_options_contract = await self.ticker_info(contracts)
 
-    def create_options_contract(self, symbol, expiration, strike, right):
-        return Option(
-            symbol,
-            expiration,
-            strike,
-            right,
-            constants.SMART
-        )
+        print("Chosen options contract with the closet delta to 0.45:", chosen_options_contract)
+
+        return chosen_options_contract
 
     def delete_options_contract(self, symbol, condition):
         print("Deleting Option Contract from database since we sold!")
@@ -787,8 +654,12 @@ class OptionsBot:
         sql_query = constants.DELETE_OPTION
         sql_input = (symbol, condition)
 
-        self.cnx.cursor().execute(sql_query, sql_input)
-        self.cnx.commit()
+        try:
+            cursor = self.cnx.cursor()
+            cursor.execute(sql_query, sql_input)
+            self.cnx.commit()
+        except mysql.connector.Error as err:
+            print("Failed deleting option from table: {}".format(err))
 
         print("Successfully deleted from database!")
 
@@ -813,13 +684,17 @@ class OptionsBot:
             message_data['order']['result']
         )
 
-        self.cnx.cursor().execute(sql_query, sql_input)
-        self.cnx.commit()
+        try:
+            cursor = self.cnx.cursor()
+            cursor.execute(sql_query, sql_input)
+            self.cnx.commit()
+        except mysql.connector.Error as err:
+            print("Failed saving data to signals table: {}".format(err))
 
         print("Saved to database!")
 
     def get_trade_contracts(self, symbol, condition):
-        self.cnx.row_factory = lambda cursor, row: row[0]
+        self.cnx.row_factory = lambda curs, row: row[0]
         cursor = self.cnx.cursor()
 
         sqlite_insert_with_param = constants.GET_MATCHING_TRADE
@@ -894,7 +769,7 @@ class OptionsBot:
             fright = row[3]
             number_of_contracts = row[4]
 
-            found_contract = self.create_options_contract(fsymbol, fexpiration, fstrike, fright)
+            found_contract = create_options_contract(fsymbol, fexpiration, fstrike, fright)
             self.ib.qualifyContracts(found_contract)
 
             print(found_contract)
