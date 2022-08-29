@@ -193,42 +193,31 @@
                 <!-- Content Row -->
 
                 <div class="row">
-                    <div class="card shadow mb-4 col">
-                            <div class="card-header py-3">
-                                <h6 class="m-0 font-weight-bold text-primary">Trade Database</h6>
+                    <!-- Pie Chart -->
+                    <div class="col-xl-4 col-lg-4">
+                        <div class="card shadow mb-4">
+                            <!-- Card Header - Dropdown -->
+                            <div
+                                class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                <h6 class="m-0 font-weight-bold text-primary">Yesterday's Trades</h6>
                             </div>
-                            <div class="card-body table-responsive">
-                                <table class="table">
-                                    <tr>
-                                        <th>Symbol</th>
-                                        <th>Condition</th>
-                                        <th>Right</th>
-                                        <th># of Contracts</th>
-                                        <th>Result</th>
-                                        <th>Entry Time</th>
-                                        <th>Exit Time</th>
-                                    </tr>
-                                    {% for signal in signals %}
-                                    {% if signal[18] == "W" %}
-                                        {% set row_class = "table-success" %}
-                                    {% elif signal[18] == "P" %}
-                                        {% set row_class = "table-light" %}
-                                    {% else %}
-                                        {% set row_class = "table-danger" %}
-                                    {% endif %}
-                                    <tr class="{{ row_class }}">
-                                        <td>{{ signal[1] }}</td>
-                                        <td>{{ signal[2] }}</td>
-                                        <td>{{ signal[4] }}</td>
-                                        <td>{{ signal[5] }}</td>
-                                        <td>{{ signal[18] }}</td>
-                                        <td>{{ signal[19] }}</td>
-                                        <td>{{ signal[20] }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </table>
+
+                            <!-- Card Body -->
+                            <div class="card-body">
+                                <div class="chart-pie">
+                                    <canvas id="yesterdayPieChart"></canvas>
+                                </div>
+                                <div class="mt-4 text-center small">
+                                    <span class="mr-2">
+                                        <em class="fas fa-circle text-success"></em> Won - {{ yesterday_wins }}
+                                    </span>
+                                    <span class="mr-2">
+                                        <em class="fas fa-circle text-danger"></em> Lost - {{ yesterday_losses }}
+                                    </span>
+                                </div>
                             </div>
                         </div>
+                    </div>
 
                     <!-- Pie Chart -->
                     <div class="col-xl-4 col-lg-4">
@@ -236,21 +225,7 @@
                             <!-- Card Header - Dropdown -->
                             <div
                                 class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                                <h6 class="m-0 font-weight-bold text-primary">Total Trades</h6>
-                                <div class="dropdown no-arrow">
-                                    <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink"
-                                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                        <em class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></em>
-                                    </a>
-                                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in"
-                                        aria-labelledby="dropdownMenuLink">
-                                        <div class="dropdown-header">Dropdown Header:</div>
-                                        <a class="dropdown-item" href="#">Action</a>
-                                        <a class="dropdown-item" href="#">Another action</a>
-                                        <div class="dropdown-divider"></div>
-                                        <a class="dropdown-item" href="#">Something else here</a>
-                                    </div>
-                                </div>
+                                <h6 class="m-0 font-weight-bold text-primary">Today's Trades</h6>
                             </div>
                             <!-- Card Body -->
                             <div class="card-body">
@@ -268,52 +243,73 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Pie Chart -->
+                    <div class="col-xl-4 col-lg-4">
+                        <div class="card shadow mb-4">
+                            <!-- Card Header - Dropdown -->
+                            <div
+                                class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                <h6 class="m-0 font-weight-bold text-primary">Monthly Trades</h6>
+                            </div>
+                            <!-- Card Body -->
+                            <div class="card-body">
+                                <div class="chart-pie">
+                                    <canvas id="monthlyPieChart"></canvas>
+                                </div>
+                                <div class="mt-4 text-center small">
+                                    <span class="mr-2">
+                                        <em class="fas fa-circle text-success"></em> Won - {{ monthly_wins }}
+                                    </span>
+                                    <span class="mr-2">
+                                        <em class="fas fa-circle text-danger"></em> Lost - {{ monthly_losses }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
                 </div>
 
                 <!-- Content Row -->
                 <div class="row">
 
-                    <!-- Content Column -->
-                    <div class="col-lg-6 mb-4">
-
-                        <!-- Project Card Example -->
-                        <div class="card shadow mb-4">
+                    <div class="card shadow mb-4 col">
                             <div class="card-header py-3">
-                                <h6 class="m-0 font-weight-bold text-primary">Signals</h6>
+                                <h6 class="m-0 font-weight-bold text-primary">Trade Database</h6>
                             </div>
-                            <div class="card-body">
-                                <h4 class="small font-weight-bold">Server Migration <span
-                                        class="float-right">20%</span></h4>
-                                <div class="progress mb-4">
-                                    <div class="progress-bar bg-danger" role="progressbar" style="width: 20%"
-                                        aria-valuenow="20" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                                <h4 class="small font-weight-bold">Sales Tracking <span
-                                        class="float-right">40%</span></h4>
-                                <div class="progress mb-4">
-                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 40%"
-                                        aria-valuenow="40" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                                <h4 class="small font-weight-bold">Customer Database <span
-                                        class="float-right">60%</span></h4>
-                                <div class="progress mb-4">
-                                    <div class="progress-bar" role="progressbar" style="width: 60%"
-                                        aria-valuenow="60" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                                <h4 class="small font-weight-bold">Payout Details <span
-                                        class="float-right">80%</span></h4>
-                                <div class="progress mb-4">
-                                    <div class="progress-bar bg-info" role="progressbar" style="width: 80%"
-                                        aria-valuenow="80" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                                <h4 class="small font-weight-bold">Account Setup <span
-                                        class="float-right">Complete!</span></h4>
-                                <div class="progress">
-                                    <div class="progress-bar bg-success" role="progressbar" style="width: 100%"
-                                        aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
+                            <div class="card-body table-responsive">
+                                <table class="table">
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Condition</th>
+                                        <th>Right</th>
+                                        <th># of Contracts</th>
+                                        <th>Result</th>
+                                        <th>Entry Time</th>
+                                        <th>Exit Time</th>
+                                    </tr>
+                                    {% for signal in signals %}
+                                    {% if signal[20] == "W" %}
+                                        {% set row_class = "table-success" %}
+                                    {% elif signal[20] == "P" %}
+                                        {% set row_class = "table-light" %}
+                                    {% else %}
+                                        {% set row_class = "table-danger" %}
+                                    {% endif %}
+                                    <tr class="{{ row_class }}">
+                                        <td>{{ signal[1] }}</td>
+                                        <td>{{ signal[2] }}</td>
+                                        <td>{{ signal[4] }}</td>
+                                        <td>{{ signal[5] }}</td>
+                                        <td>{{ signal[20] }}</td>
+                                        <td>{{ signal[21] }}</td>
+                                        <td>{{ signal[22] }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </table>
                             </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -344,8 +340,70 @@
                 labels: ["Won", "Lost", "Pending"],
                 datasets: [{
                   data: pie_chart_data,
-                  backgroundColor: ['#1CC88A', '#E74A3B', '#90CFF8'],
-                  hoverBackgroundColor: ['#17a673', '#2c9faf', '#90CFF8'],
+                  backgroundColor: ['#1CC88A', '#EC3120', '#90CFF8'],
+                  hoverBackgroundColor: ['#17a673', '#B91305FF', '#146393'],
+                  hoverBorderColor: "rgba(234, 236, 244, 1)"
+                }],
+              },
+              options: {
+                maintainAspectRatio: false,
+                tooltips: {
+                  backgroundColor: "rgb(255,255,255)",
+                  bodyFontColor: "#858796",
+                  borderColor: '#dddfeb',
+                  borderWidth: 1,
+                  xPadding: 15,
+                  yPadding: 15,
+                  displayColors: false,
+                  caretPadding: 10,
+                },
+                legend: {
+                  display: false
+                },
+                cutoutPercentage: 80,
+              },
+            });
+
+            let yesterday_pie_chart_data = JSON.parse({{ yesterday_pie_chart_array | tojson }})
+            var myPieChart = new Chart(yesterdayPieChart, {
+              type: 'doughnut',
+              data: {
+                labels: ["Won", "Lost"],
+                datasets: [{
+                  data: yesterday_pie_chart_data,
+                  backgroundColor: ['#1CC88A', '#EC3120'],
+                  hoverBackgroundColor: ['#17a673', '#B91305FF'],
+                  hoverBorderColor: "rgba(234, 236, 244, 1)"
+                }],
+              },
+              options: {
+                maintainAspectRatio: false,
+                tooltips: {
+                  backgroundColor: "rgb(255,255,255)",
+                  bodyFontColor: "#858796",
+                  borderColor: '#dddfeb',
+                  borderWidth: 1,
+                  xPadding: 15,
+                  yPadding: 15,
+                  displayColors: false,
+                  caretPadding: 10,
+                },
+                legend: {
+                  display: false
+                },
+                cutoutPercentage: 80,
+              },
+            });
+
+            let monthly_pie_chart_array = JSON.parse({{ monthly_pie_chart_array | tojson }})
+            var myPieChart = new Chart(monthlyPieChart, {
+              type: 'doughnut',
+              data: {
+                labels: ["Won", "Lost"],
+                datasets: [{
+                  data: monthly_pie_chart_array,
+                  backgroundColor: ['#1CC88A', '#EC3120'],
+                  hoverBackgroundColor: ['#17a673', '#B91305FF'],
                   hoverBorderColor: "rgba(234, 236, 244, 1)"
                 }],
               },

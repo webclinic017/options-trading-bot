@@ -30,17 +30,14 @@ APPLE = "AAPL"
 NVIDIA = "NVDA"
 AMAZON = "AMZN"
 
-PUT_UPPER_DELTA_BOUNDARY = -0.50
+PUT_UPPER_DELTA_BOUNDARY = -0.46
 PUT_LOWER_DELTA_BOUNDARY = -0.30
-CALL_UPPER_DELTA_BOUNDARY = 0.50
+CALL_UPPER_DELTA_BOUNDARY = 0.46
 CALL_LOWER_DELTA_BOUNDARY = 0.30
 SET_DELTA_COMPARISON = 0.45
-NUMBER_OF_STRIKE_PRICES = 5
-STRIKE_PRICE_CHECK_IN_THE_MONEY = 3
+NUMBER_OF_STRIKE_PRICES = 4
 
-NUMBER_OF_CONTRACTS = 4
-# luis - NUMBER_OF_CONTRACTS = 4
-# tyler - NUMBER_OF_CONTRACTS = 1
+NUMBER_OF_CONTRACTS = 1
 
 CREATE_TABLE = """
     CREATE TABLE  IF NOT EXISTS signals (
@@ -56,10 +53,12 @@ CREATE_TABLE = """
         take_profit         DECIMAL(10, 3),
         buy_delta           DECIMAL(10, 3),
         buy_gamma           DECIMAL(10, 3),
+        buy_theta           DECIMAL(10, 3),
         buy_ask             DECIMAL(10, 3),
         buy_implied_vol     DECIMAL(10, 3),
         sell_delta          DECIMAL(10, 3) DEFAULT 0.00,
         sell_gamma          DECIMAL(10, 3) DEFAULT 0.00,
+        sell_theta          DECIMAL(10, 3) DEFAULT 0.00,
         sell_ask            DECIMAL(10, 3) DEFAULT 0.00,
         sell_implied_vol    DECIMAL(10, 3) DEFAULT 0.00,    
         result              CHAR(1) NOT NULL,
@@ -128,8 +127,13 @@ END_OF_DAY_RESULTS = """
         FROM signals 
         WHERE buy_timestamp > DATE(NOW()) - INTERVAL 1 DAY GROUP BY result
 """
+
 DELETE_ALL = """DELETE FROM signals"""
-SELECT_ALL = """SELECT * FROM signals"""
+RETRIEVE_SIGNALS_DATA_TODAY = """SELECT * FROM signals WHERE DATE(buy_timestamp) = CURDATE()"""
+RETRIEVE_SIGNALS_DATA_YESTERDAY = """
+    SELECT * FROM signals WHERE buy_timestamp > DATE_SUB(CURRENT_DATE, INTERVAL 1 DAY) and DATE(buy_timestamp) < CURDATE()
+"""
+RETRIEVE_SIGNALS_CURRENT_MONTH = """ SELECT * FROM signals WHERE MONTH(buy_timestamp)=MONTH(now())"""
 INSERT_DATA = """
     INSERT INTO signals
         (
@@ -144,11 +148,12 @@ INSERT_DATA = """
             take_profit,
             buy_delta,
             buy_gamma,
+            buy_theta,
             buy_ask,
             buy_implied_vol,
             result
         ) 
-    VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+    VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """
 
 TEST_INSERT = """
@@ -177,7 +182,8 @@ UPDATE_DATA = """
     SET 
         result = %s, 
         sell_delta = %s, 
-        sell_gamma = %s, 
+        sell_gamma = %s,
+        sell_theta = %s, 
         sell_ask = %s, 
         sell_implied_vol = %s, 
         sell_timestamp = CURRENT_TIMESTAMP
