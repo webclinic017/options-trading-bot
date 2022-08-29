@@ -10,7 +10,7 @@ import json
 import mysql.connector
 import os
 from twilio.rest import Client
-from ib_insync import IB, Stock, Option, LimitOrder, Ticker, OptionComputation
+from ib_insync import IB, Stock, Option, LimitOrder
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 
@@ -199,6 +199,7 @@ class OptionsBot:
                                     condition,
                                     self.breakout_amazon_call_options_contract
                                 )
+                                print("Successfully placed order!")
                             else:
                                 print("There were no valid contracts to choose from, not buying anything.")
                         elif condition == "sma":
@@ -236,9 +237,6 @@ class OptionsBot:
                         put_contracts = numpy.concatenate((put_below_entry_price, put_above_entry_price))
 
                         valid_contracts = self.ib.qualifyContracts(*put_contracts)
-
-                        print("Number of valid contracts:", len(valid_contracts))
-                        print(valid_contracts)
 
                         if condition == "breakout":
                             self.breakout_amazon_put_options_contract = await self.get_correct_contract_with_delta(
@@ -287,9 +285,6 @@ class OptionsBot:
 
                         valid_contracts = self.ib.qualifyContracts(*call_contracts)
 
-                        print("Number of valid contracts:", len(valid_contracts))
-                        print(valid_contracts)
-
                         if condition == "breakout":
                             self.breakout_nvidia_call_options_contract = await self.get_correct_contract_with_delta(
                                 valid_contracts)
@@ -335,9 +330,6 @@ class OptionsBot:
                         put_contracts = numpy.concatenate((put_below_entry_price, put_above_entry_price))
 
                         valid_contracts = self.ib.qualifyContracts(*put_contracts)
-
-                        print("Number of valid contracts:", len(valid_contracts))
-                        print(valid_contracts)
 
                         if condition == "breakout":
                             self.breakout_nvidia_put_options_contract = await self.get_correct_contract_with_delta(
@@ -386,9 +378,6 @@ class OptionsBot:
 
                         valid_contracts = self.ib.qualifyContracts(*call_contracts)
 
-                        print("Number of valid contracts:", len(valid_contracts))
-                        print(valid_contracts)
-
                         if condition == "breakout":
                             self.breakout_apple_call_options_contract = await self.get_correct_contract_with_delta(
                                 valid_contracts)
@@ -434,9 +423,6 @@ class OptionsBot:
                         put_contracts = numpy.concatenate((put_below_entry_price, put_above_entry_price))
 
                         valid_contracts = self.ib.qualifyContracts(*put_contracts)
-
-                        print("Number of valid contracts:", len(valid_contracts))
-                        print(valid_contracts)
 
                         if condition == "breakout":
                             self.breakout_apple_put_options_contract = await self.get_correct_contract_with_delta(
@@ -596,16 +582,6 @@ class OptionsBot:
         # create limit order with the ask price
         limit_order = LimitOrder(action, number_of_contracts, bid)
 
-        print("Ask Price:", ask)
-        print("Bid Price:", bid)
-        print("Ask Greek delta:", delta)
-        print("Ask Greek gamma:", gamma)
-        print("Ask Greek theta:", theta)
-        print("Ask Greek implied vol.:", implied_volatility)
-        print("Contract placed:", contract)
-        print("Options LimitOrder to place:", limit_order)
-        print("The selected strike:", contract.strike)
-
         # place order
         placed_order = self.ib.placeOrder(
             contract,
@@ -622,8 +598,6 @@ class OptionsBot:
         # save the data for signals table
         self.save_data(message_data, number_of_contracts, contract.strike, ask, gamma, delta, theta, implied_volatility)
 
-        print("The final placed order for this trade:", placed_order)
-
         return placed_order
 
     async def sell_contract(self, action, condition, symbol, contract, result):
@@ -636,6 +610,7 @@ class OptionsBot:
 
             if retrieved_contract is not None:
                 print("Attempt 2: Found in database!")
+                print(retrieved_contract)
                 found_in_database = True
                 contracts_from_buy_trade = number_of_contracts
                 contract = retrieved_contract
@@ -650,19 +625,12 @@ class OptionsBot:
             theta = ask_greeks.theta
             implied_vol = ask_greeks.impliedVol
 
-            print("Contract to sell:", contract)
-            print("Sell Ask Price:", ask)
-            print("Sell Delta:", delta)
-            print("Sell Gamma:", gamma)
-            print("Sell Theta:", theta)
-            print("Sell Implied Vol.:\n", implied_vol)
-
             if not found_in_database:
                 contracts_from_buy_trade = self.get_trade_contracts(symbol, condition)
 
             sell_limit_order = LimitOrder(action, contracts_from_buy_trade, bid)
             sell_trade = self.ib.placeOrder(contract, sell_limit_order)
-            print("Sold! Trade:", sell_trade)
+            print("Successfully Sold Trade:", sell_trade)
 
             # TODO: combine into 1 transaction
             self.delete_options_contract(symbol, condition)
@@ -672,25 +640,18 @@ class OptionsBot:
 
     async def ticker_info(self, contracts):
         ticker_full_data = self.ib.reqTickers(*contracts)
-        print(ticker_full_data)
         list(ticker_full_data)
 
         valid_deltas = []
         invalid_deltas = []
         all_deltas = [ticker.askGreeks.delta for ticker in ticker_full_data]
 
-        print("All Deltas from ticker data:", all_deltas)
-
         if ticker_full_data[0].askGreeks.delta > 0:
             for i in range(len(all_deltas)):
                 if all_deltas[i] is not None:
                     if constants.CALL_UPPER_DELTA_BOUNDARY > all_deltas[i] > constants.CALL_LOWER_DELTA_BOUNDARY:
-                        print("Delta is in range of {} to {}: {}".format(
-                            constants.CALL_LOWER_DELTA_BOUNDARY, constants.CALL_UPPER_DELTA_BOUNDARY, all_deltas[i]))
                         valid_deltas.append(all_deltas[i])
                     else:
-                        print("Delta not in range of {} to {}: {}".format(
-                            constants.CALL_LOWER_DELTA_BOUNDARY, constants.CALL_UPPER_DELTA_BOUNDARY, all_deltas[i]))
                         invalid_deltas.append(all_deltas[i])
 
             closest_ticker_index = max(range(len(ticker_full_data)),
@@ -700,12 +661,8 @@ class OptionsBot:
             for i in range(len(all_deltas)):
                 if all_deltas[i] is not None:
                     if constants.PUT_UPPER_DELTA_BOUNDARY < all_deltas[i] < constants.PUT_LOWER_DELTA_BOUNDARY:
-                        print("Delta is in range of {} to {}: {}".format(
-                            constants.PUT_UPPER_DELTA_BOUNDARY, constants.PUT_LOWER_DELTA_BOUNDARY, all_deltas[i]))
                         valid_deltas.append(all_deltas[i])
                     else:
-                        print("Delta not in range of {} to {}: {}".format(
-                            constants.PUT_UPPER_DELTA_BOUNDARY, constants.PUT_LOWER_DELTA_BOUNDARY, all_deltas[i]))
                         invalid_deltas.append(all_deltas[i])
 
             closest_ticker_index = min(range(len(ticker_full_data)),
@@ -715,40 +672,18 @@ class OptionsBot:
             if closest_ticker_index > 0:
                 closest_ticker_index = closest_ticker_index - 1
 
-        print("All valid deltas     =", valid_deltas)
-        print("All invalid deltas   =", invalid_deltas)
-        print("\nContract Index      =", closest_ticker_index)
-        print("Closest Delta        =", ticker_full_data[closest_ticker_index].askGreeks.delta)
-        print("Closest Strike Price =", ticker_full_data[closest_ticker_index].contract.strike)
-        print("Contract chosen      =", ticker_full_data[closest_ticker_index].contract)
-
         return ticker_full_data[closest_ticker_index].contract
 
     async def get_correct_contract_with_delta(self, contracts):
-        print("\n*********** START Delta Calculation ***********\n")
-        print("Calculating correct contract with delta closest to {}".format(constants.SET_DELTA_COMPARISON))
-
-        valid_contracts_to_list = contracts
-
-        print("All VALID contracts\n")
-        df = pd.DataFrame(list(valid_contracts_to_list),
-                          columns=['conId', 'symbol', 'lastTradeDateOrContractMonth', 'strike', 'right',
-                                   'multiplier', 'exchange', 'currency', 'localSymbol', 'tradingClass'])
-        print(df, "\n")
-
         if len(contracts) == 0:
             print("No valid contracts to get the correct delta.")
-            print("*********** END Delta Calculation ***********\n")
             return None
         else:
             chosen_options_contract = await self.ticker_info(contracts)
-            print("\n*********** END Delta Calculation ***********\n")
+            print("The chosen contract with correct delta is:", chosen_options_contract)
             return chosen_options_contract
 
     def delete_options_contract(self, symbol, condition):
-        print("*********** Deleting Options from Database ***********\n")
-        print("\nDeleting Option Contract from database since we sold!")
-
         sql_query = constants.DELETE_OPTION
         sql_input = (symbol, condition)
 
@@ -757,15 +692,11 @@ class OptionsBot:
             cursor.execute(sql_query, sql_input)
             self.cnx.commit()
             cursor.close()
-            print("Successfully deleted Option from table!")
-            print("*********** Finished Deleting From Database ***********\n")
+            print("Successfully DELETED Option from table!")
         except mysql.connector.Error as err:
             print("Failed deleting option from table: {}".format(err))
-            print("*********** Error Deleting From Database ***********\n")
 
     def save_data(self, message_data, number_of_contracts, strike_price, ask, gamma, delta, theta, implied_vol):
-        print("\n*********** Inserting Data in Database ***********\n")
-
         sql_query = constants.INSERT_DATA
         sql_input = (
             message_data['symbol'],
@@ -785,21 +716,18 @@ class OptionsBot:
             message_data['order']['result']
         )
 
-        print("Data to be inserted in Database:", sql_input)
-
         try:
-            cursor = self.cnx.cursor()
+            cursor = self.cnx.cursor(buffered=True)
             cursor.execute(sql_query, sql_input)
             self.cnx.commit()
             cursor.close()
-            print("\n*********** Successfully Inserted Data in Database ***********\n")
+            print("Successfully Inserted Data in Database!\n")
         except mysql.connector.Error as err:
             print("Failed saving data to signals table: {}".format(err))
-            print("\n*********** Failed Updating Data in Database ***********\n")
 
     def get_trade_contracts(self, symbol, condition):
         self.cnx.row_factory = lambda curs, row: row[0]
-        cursor = self.cnx.cursor()
+        cursor = self.cnx.cursor(buffered=True)
 
         sqlite_insert_with_param = constants.GET_MATCHING_TRADE
         sqlite_data = (
@@ -809,18 +737,10 @@ class OptionsBot:
 
         cursor.execute(sqlite_insert_with_param, sqlite_data)
         number_of_contracts = cursor.fetchone()
-        cursor.close()
-
-        print(number_of_contracts[0])
-
-        print("Number of contracts returned from database for", symbol, "and condition", condition, "is",
-              number_of_contracts[0])
 
         return number_of_contracts[0]
 
     def update_data(self, result, condition, symbol, sell_ask, sell_delta, sell_gamma, sell_theta, sell_implied_vol):
-        print("Updating database...")
-
         cursor = self.cnx.cursor(buffered=True)
         sql_update_query = constants.UPDATE_DATA
         sql_input_data = (result, sell_delta, sell_gamma, sell_theta, sell_ask, sell_implied_vol, condition, symbol)
@@ -831,13 +751,11 @@ class OptionsBot:
 
         cursor.close()
 
-        print("Updated", rows_affected, "rows in the database Successfully!")
+        print("Successfully Updated", rows_affected, "rows in the database Successfully!")
 
     def insert_option_contract(self, condition, contract, number_of_contracts):
         # have a static db connection and then get cursor from that
         cursor = self.cnx.cursor(buffered=True)
-        print("Inserting option contract into database...")
-        print("The contract to insert:", contract)
 
         sqlite_insert_with_param = constants.INSERT_OPTION
         sqlite_data = (
@@ -856,10 +774,8 @@ class OptionsBot:
         self.cnx.commit()
         cursor.close()
 
-        print("Inserted into Database:", sqlite_data)
-
     def check_for_options_contract(self, symbol, condition):
-        cursor = self.cnx.cursor()
+        cursor = self.cnx.cursor(buffered=True)
         sql_query = constants.GET_OPTION_CONTRACT
         sql_input = (symbol, condition)
         cursor.execute(sql_query, sql_input)
@@ -868,7 +784,6 @@ class OptionsBot:
 
         # found in database
         if row:
-            print(row)
             fsymbol = row[0]
             fexpiration = row[1]
             fstrike = row[2]
@@ -877,8 +792,6 @@ class OptionsBot:
 
             found_contract = create_options_contract(fsymbol, fexpiration, fstrike, fright)
             self.ib.qualifyContracts(found_contract)
-
-            print(found_contract)
         else:
             print("No contract found in database.")
             return None, None
