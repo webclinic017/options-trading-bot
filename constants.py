@@ -194,7 +194,8 @@ UPDATE_DATA = """
         symbol = %s
 """
 
-GET_MATCHING_TRADE = """select contracts from signals where symbol = %s and trade_condition = %s and result = 'P'"""
+# TODO: see why this can retrieve more than one
+GET_MATCHING_TRADE = """select contracts from signals where symbol = %s and trade_condition = %s and result = 'P' LIMIT 1"""
 
 CREATE_OPTIONS_TABLE = """
     CREATE TABLE IF NOT EXISTS options (
@@ -217,7 +218,8 @@ GET_OPTION_CONTRACT = """
         FROM options 
         WHERE 
             symbol = %s AND 
-            trade_condition = %s
+            trade_condition = %s 
+        LIMIT 1
 """
 DELETE_OPTION = """DELETE FROM options WHERE symbol = %s AND trade_condition = %s"""
 INSERT_OPTION = """
