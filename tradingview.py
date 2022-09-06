@@ -31,6 +31,7 @@ def dashboard():
     signals_today = []
     signals_yesterday = []
     signals_current_month = []
+    net_liquidity = []
 
     try:
         cnx = mysql.connector.connect(**constants.config)
@@ -47,33 +48,18 @@ def dashboard():
 
     total_call_trades = sum((1 for i in signals_today if i[4] == constants.CALL))
     total_put_trades = sum((1 for i in signals_today if i[4] == constants.PUT))
-    total_wins = sum((1 for i in signals_today if i[20] == 'W'))
-    total_losses = sum((1 for i in signals_today if i[20] == 'L'))
-    total_pending = sum((1 for i in signals_today if i[20] == 'P'))
-    yesterday_total_wins = sum((1 for i in signals_yesterday if i[20] == 'W'))
-    yesterday_total_losses = sum((1 for i in signals_yesterday if i[20] == 'L'))
-    yesterday_total_pending = sum((1 for i in signals_yesterday if i[20] == 'P'))
-    monthly_total_wins = sum((1 for i in signals_current_month if i[20] == 'W'))
-    monthly_total_losses = sum((1 for i in signals_current_month if i[20] == 'L'))
+    total_wins = sum((1 for i in signals_today if i[22] == 'W'))
+    total_losses = sum((1 for i in signals_today if i[22] == 'L'))
+    total_pending = sum((1 for i in signals_today if i[22] == 'P'))
+    yesterday_total_wins = sum((1 for i in signals_yesterday if i[22] == 'W'))
+    yesterday_total_losses = sum((1 for i in signals_yesterday if i[22] == 'L'))
+    yesterday_total_pending = sum((1 for i in signals_yesterday if i[22] == 'P'))
+    monthly_total_wins = sum((1 for i in signals_current_month if i[22] == 'W'))
+    monthly_total_losses = sum((1 for i in signals_current_month if i[22] == 'L'))
 
     list(signals_today)
     list(signals_yesterday)
     list(signals_current_month)
-
-    if signals_today:
-        average_call_delta = sum((i[10] for i in signals_today if i[4] == constants.CALL)) / len(signals_today)
-        average_call_gamma = sum((i[11] for i in signals_today if i[4] == constants.CALL)) / len(signals_today)
-        average_call_ask = sum((i[12] for i in signals_today if i[4] == constants.CALL)) / len(signals_today)
-        average_put_delta = sum((i[10] for i in signals_today if i[4] == constants.PUT)) / len(signals_today)
-        average_put_gamma = sum((i[11] for i in signals_today if i[4] == constants.PUT)) / len(signals_today)
-        average_put_ask = sum((i[12] for i in signals_today if i[4] == constants.PUT)) / len(signals_today)
-    else:
-        average_call_delta = 0
-        average_call_gamma = 0
-        average_call_ask = 0
-        average_put_delta = 0
-        average_put_gamma = 0
-        average_put_ask = 0
 
     pie_chart_array = [total_wins, total_losses, total_pending]
     yesterday_pie_chart_array = [yesterday_total_wins, yesterday_total_losses, yesterday_total_pending]
@@ -84,12 +70,6 @@ def dashboard():
         signals=signals_today,
         total_call_trades=total_call_trades,
         total_put_trades=total_put_trades,
-        average_call_delta=average_call_delta,
-        average_call_gamma=average_call_gamma,
-        average_call_ask=average_call_ask,
-        average_put_delta=average_put_delta,
-        average_put_gamma=average_put_gamma,
-        average_put_ask=average_put_ask,
         pie_chart_array=json.dumps(pie_chart_array),
         yesterday_pie_chart_array = json.dumps(yesterday_pie_chart_array),
         monthly_pie_chart_array = json.dumps(monthly_pie_chart_array),
