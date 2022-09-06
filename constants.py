@@ -30,9 +30,14 @@ APPLE = "AAPL"
 NVIDIA = "NVDA"
 AMAZON = "AMZN"
 
-PUT_UPPER_DELTA_BOUNDARY = -0.46
+SMA = "sma"
+SMA_GREEN = "sma_green"
+SMA_YELLOW = "sma_yellow"
+BREAKOUT = "breakout"
+
+PUT_UPPER_DELTA_BOUNDARY = -0.47
 PUT_LOWER_DELTA_BOUNDARY = -0.30
-CALL_UPPER_DELTA_BOUNDARY = 0.46
+CALL_UPPER_DELTA_BOUNDARY = 0.47
 CALL_LOWER_DELTA_BOUNDARY = 0.30
 SET_DELTA_COMPARISON = 0.45
 NUMBER_OF_STRIKE_PRICES = 4
@@ -40,7 +45,7 @@ NUMBER_OF_STRIKE_PRICES = 4
 NUMBER_OF_CONTRACTS = 1
 
 CREATE_TABLE = """
-    CREATE TABLE  IF NOT EXISTS signals (
+    CREATE TABLE IF NOT EXISTS signals (
         id                  INT(11) NOT NULL AUTO_INCREMENT,
         symbol              VARCHAR(10) NOT NULL,
         trade_condition     VARCHAR(20) NOT NULL,
@@ -55,15 +60,42 @@ CREATE_TABLE = """
         buy_gamma           DECIMAL(10, 3),
         buy_theta           DECIMAL(10, 3),
         buy_ask             DECIMAL(10, 3),
+        buy_bid             DECIMAL(10, 3),
         buy_implied_vol     DECIMAL(10, 3),
         sell_delta          DECIMAL(10, 3) DEFAULT 0.00,
         sell_gamma          DECIMAL(10, 3) DEFAULT 0.00,
         sell_theta          DECIMAL(10, 3) DEFAULT 0.00,
         sell_ask            DECIMAL(10, 3) DEFAULT 0.00,
+        sell_bid            DECIMAL(10, 3) DEFAULT 0.00,
         sell_implied_vol    DECIMAL(10, 3) DEFAULT 0.00,    
         result              CHAR(1) NOT NULL,
         buy_timestamp       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         sell_timestamp      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+    )
+"""
+
+CREATE_OPTIONS_TABLE = """
+    CREATE TABLE IF NOT EXISTS options (
+        option_id                     INT(11) NOT NULL AUTO_INCREMENT,
+        trade_condition               VARCHAR(20) NOT NULL,
+        symbol                        VARCHAR(10) NOT NULL,
+        lastTradeDateOrContractMonth  VARCHAR(20) NOT NULL, 
+        strike                        VARCHAR(10) NOT NULL,
+        trade_right                   VARCHAR(4) NOT NULL,
+        exchange                      VARCHAR(20) NOT NULL,
+        tradingClass                  VARCHAR(20) NOT NULL,
+        contracts                     INT NOT NULL,
+        timestamp                     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (option_id)
+    )
+"""
+
+CREATE_ACCOUNT_SUMMARY_TABLE = """
+    CREATE TABLE IF NOT EXISTS account_summary (
+        id                  INT(11) NOT NULL AUTO_INCREMENT,
+        net_liquidity       DECIMAL(10, 2),
+        buy_timestamp       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id)
     )
 """
@@ -150,10 +182,11 @@ INSERT_DATA = """
             buy_gamma,
             buy_theta,
             buy_ask,
+            buy_bid,
             buy_implied_vol,
             result
         ) 
-    VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+    VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """
 
 TEST_INSERT = """
@@ -184,7 +217,8 @@ UPDATE_DATA = """
         sell_delta = %s, 
         sell_gamma = %s,
         sell_theta = %s, 
-        sell_ask = %s, 
+        sell_ask = %s,
+        sell_bid = %s, 
         sell_implied_vol = %s, 
         sell_timestamp = CURRENT_TIMESTAMP
     WHERE 
@@ -196,22 +230,6 @@ UPDATE_DATA = """
 
 # TODO: see why this can retrieve more than one
 GET_MATCHING_TRADE = """select contracts from signals where symbol = %s and trade_condition = %s and result = 'P' LIMIT 1"""
-
-CREATE_OPTIONS_TABLE = """
-    CREATE TABLE IF NOT EXISTS options (
-        option_id                     INT(11) NOT NULL AUTO_INCREMENT,
-        trade_condition               VARCHAR(20) NOT NULL,
-        symbol                        VARCHAR(10) NOT NULL,
-        lastTradeDateOrContractMonth  VARCHAR(20) NOT NULL, 
-        strike                        VARCHAR(10) NOT NULL,
-        trade_right                   VARCHAR(4) NOT NULL,
-        exchange                      VARCHAR(20) NOT NULL,
-        tradingClass                  VARCHAR(20) NOT NULL,
-        contracts                     INT NOT NULL,
-        timestamp                     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (option_id)
-    )
-"""
 
 GET_OPTION_CONTRACT = """
     SELECT symbol, lastTradeDateOrContractMonth, strike, trade_right, contracts 
@@ -235,4 +253,8 @@ INSERT_OPTION = """
             contracts
         )
     VALUES(%s, %s, %s, %s, %s, %s, %s, %s);
+"""
+
+RETRIEVE_NET_LIQUIDITY = """
+    SELECT * FROM account_summary
 """
